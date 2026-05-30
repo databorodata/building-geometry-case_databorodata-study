@@ -1,0 +1,11 @@
+{
+  "name": "rectangle",
+  "description": "Trivial convex baseline plot, 40m x 25m.",
+  "units": "m",
+  "polygon": [
+    [0, 0],
+    [40, 0],
+    [40, 25],
+    [0, 25]
+  ]
+}

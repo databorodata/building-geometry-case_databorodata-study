@@ -1,0 +1,13 @@
+{
+  "name": "l-shaped",
+  "description": "Concave L-shaped plot. Exercises polygon inset around a reflex corner.",
+  "units": "m",
+  "polygon": [
+    [0, 0],
+    [40, 0],
+    [40, 15],
+    [20, 15],
+    [20, 30],
+    [0, 30]
+  ]
+}

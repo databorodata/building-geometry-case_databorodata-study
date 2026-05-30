@@ -1,0 +1,15 @@
+{
+  "name": "notched",
+  "description": "Rectangle with a deep narrow notch. A large setback can split or collapse the buildable area — a near-degenerate inset case.",
+  "units": "m",
+  "polygon": [
+    [0, 0],
+    [50, 0],
+    [50, 20],
+    [30, 20],
+    [30, 6],
+    [20, 6],
+    [20, 20],
+    [0, 20]
+  ]
+}

@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+backend/docs/openapi.json
+
+# Node
+node_modules/
+dist/
+
+# Env
+.env
+
+# Local tooling
+.claude/
