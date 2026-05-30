@@ -70,8 +70,9 @@ A starting list — **not exhaustive**, and you decide how to model them:
 Everything boring is done so your weekend goes to the real problem:
 
 - **Backend** (`backend/`) — FastAPI + uv + Ruff + Pyright, a working `/api/v1/health`,
-  and **async SQLAlchemy plumbing wired up** (engine + session dependency in
-  `app/db.py`) — but **no ORM models**. The geometry domain (`app/geometry/`) is empty.
+  and an **async psycopg connection pool wired up** (`app/db.py`) — but **no ORM and no
+  schema**: define your own model types and write pure SQL. The geometry domain
+  (`app/geometry/`) is empty.
 - **Database** — Postgres, brought up by `docker compose`.
 - **Frontend** (`frontend/`) — minimal Vite + React that boots and already reaches the
   backend health check (CORS + wiring done). The canvas is empty.
@@ -100,7 +101,7 @@ judgement beats completeness.
 
 ```
 .
-├── backend/          FastAPI + uv + async SQLAlchemy (health works; geometry is yours)
+├── backend/          FastAPI + uv + async psycopg (health works; geometry is yours)
 ├── frontend/         Vite + React (boots, reaches /health; canvas is yours)
 ├── data/sites/       sample site polygons + example constraints (metres)
 ├── docs/DESIGN.md    design-note template — fill this in

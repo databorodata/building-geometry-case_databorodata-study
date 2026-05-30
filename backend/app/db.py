@@ -1,30 +1,36 @@
-"""Async SQLAlchemy plumbing.
+"""Database plumbing — async psycopg with a connection pool.
 
-This wires up an async engine + session factory and a FastAPI dependency that
-yields a session. It deliberately ships with **no ORM models** — designing the
-schema for saved massing options and the decision tree is part of the case study.
+This wires up an async connection pool and a FastAPI dependency that hands you a
+connection. There is **no ORM and no schema** on purpose: define your own model
+types (plain dataclasses / pydantic) and write **pure SQL** with psycopg.
 
-Add your models (e.g. a declarative `Base` and tables), create them on startup or
-via migrations, and use `get_session` in your routes.
+Example usage in a route:
+
+    from psycopg import AsyncConnection
+    from psycopg.rows import dict_row
+
+    async def list_options(conn: AsyncConnection = Depends(get_connection)):
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute("SELECT id, parent_id, name FROM options")
+            return await cur.fetchall()
+
+Wire the dependency to the app's pool however you prefer (e.g. a small provider
+that reads `request.app.state.db_pool`).
 """
 
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from psycopg import AsyncConnection
+from psycopg_pool import AsyncConnectionPool
 
 from app.config import Config
 
 
-def create_engine(config: Config) -> AsyncEngine:
-    return create_async_engine(config.database_url, echo=config.debug, pool_pre_ping=True)
+def create_pool(config: Config) -> AsyncConnectionPool:
+    # open=False: the pool is opened in the app lifespan, not at import time.
+    return AsyncConnectionPool(config.database_url, open=False)
 
 
-def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
-    return async_sessionmaker(engine, expire_on_commit=False)
-
-
-async def get_session(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> AsyncGenerator[AsyncSession, None]:
-    async with session_factory() as session:
-        yield session
+async def get_connection(pool: AsyncConnectionPool) -> AsyncGenerator[AsyncConnection, None]:
+    async with pool.connection() as conn:
+        yield conn

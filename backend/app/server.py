@@ -5,16 +5,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Config
-from app.db import create_engine, create_session_factory
+from app.db import create_pool
 from app.v1.router import router as v1_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # startup
+    await app.state.db_pool.open()
     yield
     # shutdown
-    await app.state.db_engine.dispose()
+    await app.state.db_pool.close()
 
 
 def create_app(config: Config) -> FastAPI:
@@ -26,8 +27,7 @@ def create_app(config: Config) -> FastAPI:
     )
 
     app.state.config = config
-    app.state.db_engine = create_engine(config)
-    app.state.db_session_factory = create_session_factory(app.state.db_engine)
+    app.state.db_pool = create_pool(config)
 
     origins = [o.strip() for o in config.allowed_origins.split(";")]
     app.add_middleware(

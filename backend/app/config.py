@@ -8,5 +8,5 @@ class Config(BaseSettings):
     log_level: str = "INFO"
     debug: bool = False
     allowed_origins: str = "*"
-    # Async SQLAlchemy URL. Defaults to the docker-compose `db` service.
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/casestudy"
+    # libpq connection string (psycopg). Defaults to the docker-compose `db` service.
+    database_url: str = "postgresql://postgres:postgres@localhost:5432/casestudy"

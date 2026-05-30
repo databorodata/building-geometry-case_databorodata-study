@@ -13,10 +13,11 @@ in docs/DESIGN.md):
     plates within the height/area limits; report metrics (footprint area, GFA,
     floor count) and feasibility. Handle degenerate / infeasible inputs.
   - Persist: save a result as an "option", and let users branch alternative
-    options from an existing one (see app/db.py). The saved options form a tree.
+    options from an existing one (see app/db.py — async psycopg pool, raw SQL,
+    define your own model types). The saved options form a tree.
 
 Sample inputs live in ../data/sites/. Suggested next steps:
   - add `app/geometry/massing.py` for the algorithm,
-  - add ORM models + an `app/v1/routes/massing.py` router,
+  - add model types + SQL (and your schema) + an `app/v1/routes/massing.py` router,
   - and tests under ../tests/.
 """

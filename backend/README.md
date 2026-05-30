@@ -1,6 +1,6 @@
 # Backend — building geometry case study
 
-FastAPI + uv + async SQLAlchemy. This is a scaffold: it runs and exposes a health
+FastAPI + uv + async psycopg. This is a scaffold: it runs and exposes a health
 check, has the database plumbing wired, and leaves the geometry domain to you.
 
 ## Stack
@@ -8,7 +8,7 @@ check, has the database plumbing wired, and leaves the geometry domain to you.
 - **[uv](https://docs.astral.sh/uv/)** — package manager
 - **FastAPI** — HTTP API under `/api/v1/`
 - **pydantic-settings** — config from env vars (`APP_` prefix)
-- **SQLAlchemy (async) + asyncpg** — DB access (engine + session wired, no models)
+- **psycopg (async) + connection pool** — DB access (pool wired, no schema; you write raw SQL)
 - **Typer** — CLI (`serve`, `generate-openapi`)
 - **Ruff** + **Pyright** — lint/format + type check
 
@@ -25,8 +25,9 @@ A Postgres is expected at `APP_DATABASE_URL`. The easiest way is the root
 
 ## What's here / what's yours
 
-- `app/server.py` — FastAPI app, CORS, lifespan; creates the DB engine + session factory.
-- `app/db.py` — async engine + `get_session` dependency. **No ORM models** — you design them.
+- `app/server.py` — FastAPI app, CORS, lifespan; creates + opens the DB connection pool.
+- `app/db.py` — async psycopg pool + `get_connection` dependency. **No ORM, no schema** — define
+  your own model types and write pure SQL.
 - `app/v1/routes/health.py` — `GET /api/v1/health`.
 - `app/geometry/` — empty domain module. **Build the massing algorithm + types here.**
 
@@ -50,4 +51,4 @@ uv run app generate-openapi                # -> docs/openapi.json
 | `APP_LOG_LEVEL` | `INFO` | Logging level |
 | `APP_DEBUG` | `false` | FastAPI debug mode |
 | `APP_ALLOWED_ORIGINS` | `*` | CORS origins, semicolon-separated |
-| `APP_DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/casestudy` | Async SQLAlchemy URL |
+| `APP_DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/casestudy` | libpq connection string (psycopg) |

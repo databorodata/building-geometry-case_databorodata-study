@@ -22,7 +22,7 @@ services:
     environment:
       APP_DEBUG: "true"
       APP_ALLOWED_ORIGINS: "http://localhost:5173"
-      APP_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@db:5432/casestudy"
+      APP_DATABASE_URL: "postgresql://postgres:postgres@db:5432/casestudy"
     depends_on:
       db:
         condition: service_healthy
