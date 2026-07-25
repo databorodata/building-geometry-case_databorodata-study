@@ -16,11 +16,34 @@ class SiteRecord:
     created_at: datetime
 
 
+@dataclass
+class OptionRecord:
+    id: UUID
+    site_id: UUID
+    parent_id: UUID | None
+    name: str | None
+    params: dict[str, Any]
+    result: dict[str, Any]
+    created_at: datetime
+
+
 def _site_record(row: dict[str, Any]) -> SiteRecord:
     return SiteRecord(
         id=row["id"],
         name=row["name"],
         polygon=row["polygon"],
+        created_at=row["created_at"],
+    )
+
+
+def _option_record(row: dict[str, Any]) -> OptionRecord:
+    return OptionRecord(
+        id=row["id"],
+        site_id=row["site_id"],
+        parent_id=row["parent_id"],
+        name=row["name"],
+        params=row["params"],
+        result=row["result"],
         created_at=row["created_at"],
     )
 
@@ -51,3 +74,44 @@ async def list_sites(conn: AsyncConnection) -> list[SiteRecord]:
         await cur.execute("SELECT id, name, polygon, created_at FROM sites ORDER BY created_at, id")
         rows = await cur.fetchall()
     return [_site_record(row) for row in rows]
+
+
+async def create_option(
+    conn: AsyncConnection,
+    site_id: UUID,
+    parent_id: UUID | None,
+    name: str | None,
+    params: dict[str, Any],
+    result: dict[str, Any],
+) -> OptionRecord:
+    async with conn.cursor(row_factory=dict_row) as cur:
+        await cur.execute(
+            "INSERT INTO options (id, site_id, parent_id, name, params, result) "
+            "VALUES (%s, %s, %s, %s, %s, %s) "
+            "RETURNING id, site_id, parent_id, name, params, result, created_at",
+            (uuid4(), site_id, parent_id, name, Jsonb(params), Jsonb(result)),
+        )
+        row = await cur.fetchone()
+    assert row is not None
+    return _option_record(row)
+
+
+async def get_option(conn: AsyncConnection, option_id: UUID) -> OptionRecord | None:
+    async with conn.cursor(row_factory=dict_row) as cur:
+        await cur.execute(
+            "SELECT id, site_id, parent_id, name, params, result, created_at FROM options WHERE id = %s",
+            (option_id,),
+        )
+        row = await cur.fetchone()
+    return _option_record(row) if row else None
+
+
+async def list_options(conn: AsyncConnection, site_id: UUID) -> list[OptionRecord]:
+    async with conn.cursor(row_factory=dict_row) as cur:
+        await cur.execute(
+            "SELECT id, site_id, parent_id, name, params, result, created_at FROM options "
+            "WHERE site_id = %s ORDER BY created_at, id",
+            (site_id,),
+        )
+        rows = await cur.fetchall()
+    return [_option_record(row) for row in rows]

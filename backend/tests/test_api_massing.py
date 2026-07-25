@@ -54,3 +54,10 @@ async def test_preview_rejects_too_small_site(client):
     response = await client.post("/api/v1/massing/preview", json=payload)
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "site_too_small"
+
+
+def test_openapi_lists_routes(app):
+    schema = app.openapi()
+    assert "/api/v1/massing/preview" in schema["paths"]
+    assert "/api/v1/sites" in schema["paths"]
+    assert "/api/v1/options/{option_id}/compare/{other_id}" in schema["paths"]
