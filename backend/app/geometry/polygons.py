@@ -42,6 +42,11 @@ def polygon_parts(geometry: BaseGeometry) -> list[Polygon]:
     return []
 
 
+def polygon_outline(polygon: Polygon) -> list[Point]:
+    coords = list(polygon.exterior.coords)[:-1]
+    return [(round(x, 2), round(y, 2)) for x, y in coords]
+
+
 def inset_islands(site: Polygon, depth: float) -> list[Polygon]:
     if depth <= 0:
         shrunk: BaseGeometry = site
@@ -63,3 +68,38 @@ def max_setback(site: Polygon) -> float:
         else:
             high = middle
     return math.floor(low / SETBACK_STEP_M) * SETBACK_STEP_M
+
+
+def erode_to_area(polygon: Polygon, target_area: float) -> Polygon:
+    if target_area >= polygon.area:
+        return polygon
+    min_x, min_y, max_x, max_y = polygon.bounds
+    low = 0.0
+    high = max(max_x - min_x, max_y - min_y)
+    for _ in range(40):
+        middle = (low + high) / 2
+        parts = polygon_parts(polygon.buffer(-middle, join_style="mitre"))
+        area = sum(part.area for part in parts)
+        if area > target_area:
+            low = middle
+        else:
+            high = middle
+    parts = polygon_parts(polygon.buffer(-low, join_style="mitre"))
+    if not parts:
+        return polygon
+    return max(parts, key=lambda part: part.area)
+
+
+def min_contour_area(contour: Polygon) -> float:
+    area = contour.area
+    depth = SETBACK_STEP_M
+    while True:
+        parts = [
+            part
+            for part in polygon_parts(contour.buffer(-depth, join_style="mitre"))
+            if part.area >= MIN_BUILDING_AREA_M2
+        ]
+        if len(parts) != 1:
+            return area
+        area = parts[0].area
+        depth += SETBACK_STEP_M
