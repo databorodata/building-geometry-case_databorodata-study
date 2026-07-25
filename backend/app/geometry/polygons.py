@@ -1,8 +1,9 @@
 import math
 
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry.base import BaseGeometry
 
-from app.geometry.limits import MIN_BUILDING_AREA_M2
+from app.geometry.limits import MIN_BUILDING_AREA_M2, SETBACK_STEP_M
 
 Point = tuple[float, float]
 
@@ -29,3 +30,36 @@ def validate_site(points: list[Point]) -> Polygon:
     if polygon.area < MIN_BUILDING_AREA_M2:
         raise SiteError("site_too_small", f"Site area must be at least {MIN_BUILDING_AREA_M2} m2")
     return polygon
+
+
+def polygon_parts(geometry: BaseGeometry) -> list[Polygon]:
+    if geometry.is_empty:
+        return []
+    if isinstance(geometry, Polygon):
+        return [geometry]
+    if isinstance(geometry, MultiPolygon):
+        return [part for part in geometry.geoms if not part.is_empty]
+    return []
+
+
+def inset_islands(site: Polygon, depth: float) -> list[Polygon]:
+    if depth <= 0:
+        shrunk: BaseGeometry = site
+    else:
+        shrunk = site.buffer(-depth, join_style="mitre")
+    islands = [part for part in polygon_parts(shrunk) if part.area >= MIN_BUILDING_AREA_M2]
+    islands.sort(key=lambda part: (round(part.centroid.x, 1), round(part.centroid.y, 1)))
+    return islands
+
+
+def max_setback(site: Polygon) -> float:
+    min_x, min_y, max_x, max_y = site.bounds
+    low = 0.0
+    high = max(max_x - min_x, max_y - min_y)
+    for _ in range(40):
+        middle = (low + high) / 2
+        if inset_islands(site, middle):
+            low = middle
+        else:
+            high = middle
+    return math.floor(low / SETBACK_STEP_M) * SETBACK_STEP_M
