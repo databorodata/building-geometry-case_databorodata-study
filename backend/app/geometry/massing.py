@@ -31,6 +31,7 @@ class BuildingParams(BaseModel):
 
 class MassingParams(BaseModel):
     setback_m: float = DEFAULT_SETBACK_M
+    gfa_target_m2: float | None = None
     buildings: list[BuildingParams] = []
 
 
@@ -66,6 +67,12 @@ class EnsembleMetrics(BaseModel):
     building_count: int
 
 
+class GfaCheck(BaseModel):
+    target_m2: float
+    max_possible_m2: float
+    reachable: bool
+
+
 class MassingResult(BaseModel):
     status: str
     reason: str | None = None
@@ -73,6 +80,7 @@ class MassingResult(BaseModel):
     site_outline: list[Point]
     metrics: EnsembleMetrics
     buildings: list[BuildingResult]
+    gfa_check: GfaCheck | None = None
 
 
 def default_floor_stack(island: Polygon) -> list[FloorParams]:
@@ -222,11 +230,20 @@ def compute_massing(points: list[Point], params: MassingParams | None) -> tuple[
     params = params.model_copy(update={"setback_m": setback, "buildings": building_params})
     buildings = [build_building(island, item) for island, item in zip(islands, building_params)]
     metrics = rollup_metrics(site, islands, buildings)
+    gfa_check = None
+    if params.gfa_target_m2 is not None and params.gfa_target_m2 > 0:
+        max_possible = sum(island.area for island in islands) * MAX_FLOORS
+        gfa_check = GfaCheck(
+            target_m2=params.gfa_target_m2,
+            max_possible_m2=round(max_possible, 1),
+            reachable=params.gfa_target_m2 <= max_possible,
+        )
     result = MassingResult(
         status="ok",
         max_setback_m=setback_limit,
         site_outline=site_outline,
         metrics=metrics,
         buildings=buildings,
+        gfa_check=gfa_check,
     )
     return params, result
