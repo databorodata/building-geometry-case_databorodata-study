@@ -1,0 +1,160 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #2b3138;
+  background: #f6f7f9;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e1e5ea;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.health {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.health.ok {
+  background: #e2f2e2;
+  color: #2c6e2c;
+}
+
+.health.bad {
+  background: #f7e3e3;
+  color: #a33;
+}
+
+button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid #c6ccd4;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #eef1f5;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  background: #3866a8;
+  border-color: #3866a8;
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #2d5590;
+}
+
+input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid #c6ccd4;
+  border-radius: 6px;
+}
+
+.error {
+  color: #a33;
+}
+
+.error.banner {
+  margin: 8px 20px;
+  padding: 8px 12px;
+  background: #f7e3e3;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.hint {
+  color: #6a727c;
+  font-size: 13px;
+}
+
+.site-drawer {
+  padding: 20px;
+}
+
+.drawer-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.drawer-canvas {
+  background: #fff;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  cursor: crosshair;
+}
+
+.drawer-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 300px;
+}
+
+.drawer-side label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.samples {
+  display: flex;
+  gap: 8px;
+}
+
+.coords-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.coords-table th,
+.coords-table td {
+  border: 1px solid #e1e5ea;
+  padding: 3px 6px;
+}
+
+.coords-table input {
+  width: 70px;
+  padding: 2px 6px;
+}
+
+.site-summary {
+  padding: 20px;
+}
