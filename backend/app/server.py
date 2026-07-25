@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Config
-from app.db import create_pool
+from app.db import apply_schema, create_pool
 from app.v1.router import router as v1_router
 
 
@@ -13,6 +13,7 @@ from app.v1.router import router as v1_router
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # startup
     await app.state.db_pool.open()
+    await apply_schema(app.state.db_pool)
     yield
     # shutdown
     await app.state.db_pool.close()
