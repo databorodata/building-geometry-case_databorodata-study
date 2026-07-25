@@ -59,3 +59,39 @@ def test_clamp_floor_height():
     assert heights.clamp_floor_height(1.0) == 2.3
     assert heights.clamp_floor_height(5.0) == 4.6
     assert heights.clamp_floor_height(3.14) == 3.1
+
+
+def test_max_height_from_single_floor():
+    floors = heights.distribute_height(24.0, 1)
+    assert len(floors) == 7
+    assert sum(floors) == pytest.approx(24.0)
+
+
+def test_max_height_keeps_eight_floors():
+    assert heights.distribute_height(24.0, 8) == [3.0] * 8
+
+
+def test_comfort_switch_boundary():
+    assert len(heights.distribute_height(10.8, 3)) == 3
+    assert len(heights.distribute_height(11.2, 3)) == 4
+
+
+def test_weird_current_count_does_not_crash():
+    assert heights.distribute_height(9.0, 0) == [3.0, 3.0, 3.0]
+    assert heights.distribute_height(9.0, 99) == [3.0, 3.0, 3.0]
+
+
+def test_spread_floors_direct():
+    floors = heights.spread_floors(233, 7)
+    assert floors == [3.4, 3.4, 3.3, 3.3, 3.3, 3.3, 3.3]
+    assert sum(floors) == pytest.approx(23.3)
+
+
+def test_below_minimum_clamps():
+    assert heights.distribute_height(-5.0, 1) == [2.3]
+    assert heights.distribute_height(0.0, 3) == [2.3]
+
+
+def test_pick_floor_count_bounds():
+    assert heights.pick_floor_count(23, 1) == 1
+    assert 6 <= heights.pick_floor_count(240, 8) <= 8
