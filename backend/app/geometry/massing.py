@@ -24,6 +24,7 @@ class FloorParams(BaseModel):
 
 class BuildingParams(BaseModel):
     contour_area_m2: float | None = None
+    total_height_m: float | None = None
     locked: bool = False
     floors: list[FloorParams]
 
@@ -91,6 +92,19 @@ def default_params(site: Polygon) -> MassingParams:
     islands = polygons.inset_islands(site, setback)
     buildings = [BuildingParams(floors=default_floor_stack(island)) for island in islands]
     return MassingParams(setback_m=setback, buildings=buildings)
+
+
+def apply_height_edit(params: BuildingParams) -> BuildingParams:
+    if params.total_height_m is None:
+        return params
+    new_heights = heights.distribute_height(params.total_height_m, max(1, len(params.floors)))
+    floors: list[FloorParams] = []
+    for index, height in enumerate(new_heights):
+        if index < len(params.floors):
+            floors.append(params.floors[index].model_copy(update={"height_m": height}))
+        else:
+            floors.append(FloorParams(height_m=height))
+    return params.model_copy(update={"floors": floors, "total_height_m": None})
 
 
 def clamped_ratios(floors: list[FloorParams]) -> list[float]:
@@ -204,7 +218,7 @@ def compute_massing(points: list[Point], params: MassingParams | None) -> tuple[
         if not item.floors:
             item = item.model_copy(update={"floors": default_floor_stack(island)})
         refreshed.append(item)
-    building_params = refreshed
+    building_params = [apply_height_edit(item) for item in refreshed]
     params = params.model_copy(update={"setback_m": setback, "buildings": building_params})
     buildings = [build_building(island, item) for island, item in zip(islands, building_params)]
     metrics = rollup_metrics(site, islands, buildings)
