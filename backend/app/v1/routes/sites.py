@@ -1,3 +1,5 @@
+"""Участки и дерево вариантов: создание, чтение, сохранение карточек."""
+
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -53,10 +55,12 @@ class OptionCreateRequest(BaseModel):
 
 
 def site_polygon(record: repository.SiteRecord) -> list[Point]:
+    """Полигон из jsonb-записи → список пар float (для ответа и пересчёта)."""
     return [(float(x), float(y)) for x, y in record.polygon]
 
 
 def site_response(record: repository.SiteRecord) -> SiteResponse:
+    """Запись БД → модель ответа участка."""
     return SiteResponse(
         id=record.id,
         name=record.name,
@@ -66,6 +70,7 @@ def site_response(record: repository.SiteRecord) -> SiteResponse:
 
 
 def option_response(record: repository.OptionRecord) -> OptionResponse:
+    """Запись БД → модель ответа варианта; битый jsonb-снапшот упадёт здесь громко."""
     return OptionResponse(
         id=record.id,
         site_id=record.site_id,
@@ -83,6 +88,8 @@ def option_response(record: repository.OptionRecord) -> OptionResponse:
 async def create_site(
     request: SiteCreateRequest, conn: AsyncConnection = Depends(get_connection)
 ) -> SiteCreateResponse:
+    """Участок + корневая карточка одним запросом: сначала расчёт (плохой полигон → 422,
+    в базу ничего не пишется), затем участок, затем корневой вариант с φ-дефолтом."""
     params, result = run_massing(request.polygon, None)
     site = await repository.create_site(conn, request.name, [list(point) for point in request.polygon])
     option = await repository.create_option(
@@ -93,12 +100,14 @@ async def create_site(
 
 @router.get("")
 async def list_sites(conn: AsyncConnection = Depends(get_connection)) -> list[SiteResponse]:
+    """Список участков (полнота API; экран «открыть сохранённый участок» — в roadmap)."""
     records = await repository.list_sites(conn)
     return [site_response(record) for record in records]
 
 
 @router.get("/{site_id}")
 async def get_site(site_id: UUID, conn: AsyncConnection = Depends(get_connection)) -> SiteResponse:
+    """Один участок или 404."""
     record = await repository.get_site(conn, site_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Site not found")
@@ -107,6 +116,7 @@ async def get_site(site_id: UUID, conn: AsyncConnection = Depends(get_connection
 
 @router.get("/{site_id}/options")
 async def list_options(site_id: UUID, conn: AsyncConnection = Depends(get_connection)) -> list[OptionResponse]:
+    """Все варианты участка — всё дерево одним запросом (раскладку строит фронт по parent_id)."""
     if await repository.get_site(conn, site_id) is None:
         raise HTTPException(status_code=404, detail="Site not found")
     records = await repository.list_options(conn, site_id)
@@ -117,6 +127,10 @@ async def list_options(site_id: UUID, conn: AsyncConnection = Depends(get_connec
 async def create_option(
     site_id: UUID, request: OptionCreateRequest, conn: AsyncConnection = Depends(get_connection)
 ) -> OptionResponse:
+    """Сохранение варианта: проверки целостности (участок, родитель и источник из ЭТОГО
+    участка) → пересчёт на сервере (полигон из БД, клиентскому результату не доверяем) →
+    INSERT снапшота. «Сохранить» шлёт parent = родитель текущей карточки (брат),
+    «Скопировать в ветку» — parent = текущая (ребёнок)."""
     site = await repository.get_site(conn, site_id)
     if site is None:
         raise HTTPException(status_code=404, detail="Site not found")
