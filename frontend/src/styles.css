@@ -412,3 +412,11 @@ input {
 .compare-table td:first-child {
   text-align: left;
 }
+
+.row-delete {
+  border: none;
+  background: none;
+  color: #a33;
+  padding: 0 4px;
+  font-size: 13px;
+}
