@@ -1,12 +1,12 @@
 import { fmt } from "../format.js";
 import IsoView from "./IsoView.jsx";
 
-const COL_W = 230;
-const ROW_H = 250;
+const COL_W = 250;
+const ROW_H = 260;
 const CARD_W = 210;
-const CARD_H = 230;
+const CARD_H = 240;
 
-function layoutOptions(options) {
+function layoutTree(options) {
   const byParent = new Map();
   const roots = [];
   for (const option of options) {
@@ -20,55 +20,74 @@ function layoutOptions(options) {
   }
   const cells = [];
   const links = [];
-  let nextRow = -1;
-  function walk(option, row, col) {
-    cells.push({ option, row, col });
+  let nextRow = 0;
+  function walk(option, depth) {
     const children = byParent.get(option.id) ?? [];
-    children.forEach((child, index) => {
-      if (index === 0) {
-        links.push({ fromRow: row, fromCol: col, toRow: row, toCol: col + 1 });
-        walk(child, row, col + 1);
-      } else {
-        nextRow += 1;
-        const childRow = nextRow;
-        links.push({ fromRow: row, fromCol: col, toRow: childRow, toCol: col });
-        walk(child, childRow, col);
-      }
-    });
+    let row;
+    if (children.length === 0) {
+      row = nextRow;
+      nextRow += 1;
+    } else {
+      const childRows = children.map((child) => walk(child, depth + 1));
+      row = (childRows[0] + childRows[childRows.length - 1]) / 2;
+    }
+    cells.push({ option, row, col: depth });
+    for (const child of children) {
+      links.push({ fromId: option.id, toId: child.id });
+    }
+    return row;
   }
   for (const root of roots) {
-    nextRow += 1;
-    walk(root, nextRow, 0);
+    walk(root, 0);
   }
-  return { cells, links, rows: nextRow + 1 };
+  const positions = new Map(cells.map((cell) => [cell.option.id, cell]));
+  return { cells, links, positions, rows: nextRow };
+}
+
+function linkPath(from, to) {
+  const x1 = from.col * COL_W + CARD_W;
+  const y1 = from.row * ROW_H + CARD_H / 2;
+  const x2 = to.col * COL_W;
+  const y2 = to.row * ROW_H + CARD_H / 2;
+  const middle = x1 + (COL_W - CARD_W) / 2;
+  return `M ${x1} ${y1} H ${middle} V ${y2} H ${x2}`;
 }
 
 export default function Board({ options, onOpen, compareIds, onToggleCompare }) {
-  const { cells, links, rows } = layoutOptions(options);
+  const { cells, links, positions, rows } = layoutTree(options);
   const cols = Math.max(...cells.map((cell) => cell.col)) + 1;
   const width = cols * COL_W + 40;
   const height = rows * ROW_H + 20;
+  const numberById = new Map(options.map((option, index) => [option.id, index + 1]));
+  const optionById = new Map(options.map((option) => [option.id, option]));
+
+  function optionLabel(option) {
+    return option.name || `Вариант ${numberById.get(option.id)}`;
+  }
 
   return (
     <div className="board-scroll">
       <div className="board" style={{ width, height }}>
         <svg className="board-links" width={width} height={height}>
-          {links.map((link, index) => {
-            if (link.fromRow === link.toRow) {
-              const y = link.fromRow * ROW_H + CARD_H / 2;
-              return <line key={index} x1={link.fromCol * COL_W + CARD_W} y1={y} x2={link.toCol * COL_W} y2={y} />;
-            }
-            const x = link.fromCol * COL_W + CARD_W / 2;
-            return <line key={index} x1={x} y1={link.fromRow * ROW_H + CARD_H} x2={x} y2={link.toRow * ROW_H} />;
-          })}
+          {links.map((link) => (
+            <path key={`${link.fromId}-${link.toId}`} d={linkPath(positions.get(link.fromId), positions.get(link.toId))} />
+          ))}
         </svg>
-        {cells.map(({ option, row, col }, index) => (
+        {cells.map(({ option, row, col }) => (
           <div
             key={option.id}
             className={`card${compareIds.includes(option.id) ? " selected" : ""}`}
             style={{ left: col * COL_W, top: row * ROW_H }}
           >
-            <div className="card-title">{option.name || `Вариант ${index + 1}`}</div>
+            <div className="card-title">
+              <span>
+                {optionLabel(option)}
+                {option.kind === "fork" && <span className="kind-badge">ветка</span>}
+              </span>
+            </div>
+            {option.source_id && option.source_id !== option.parent_id && optionById.has(option.source_id) && (
+              <div className="card-source">из «{optionLabel(optionById.get(option.source_id))}»</div>
+            )}
             <IsoView result={option.result} width={CARD_W - 16} height={110} />
             <div className="card-metrics">
               <span>GFA {fmt(option.result.metrics.gfa_m2)} м²</span>

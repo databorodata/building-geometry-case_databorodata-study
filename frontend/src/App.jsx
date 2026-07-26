@@ -38,7 +38,8 @@ export default function App() {
   }
 
   async function handleSaveOption(base, name, params, kind) {
-    const saved = await createOption(site.id, base.id, name, params, kind);
+    const parentId = kind === "save" ? (base.parent_id ?? base.id) : base.id;
+    const saved = await createOption(site.id, parentId, base.id, name, params, kind);
     setOptions((current) => [...current, saved]);
     if (kind === "save") setEditing(saved);
     return saved;

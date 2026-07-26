@@ -118,6 +118,28 @@ async def test_invalid_kind_rejected(client, rectangle_site):
     assert response.status_code == 422
 
 
+async def test_source_id_echoed(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    site_id = body["site"]["id"]
+    root = body["root_option"]
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={"parent_id": root["id"], "source_id": root["id"], "params": root["params"]},
+    )
+    assert response.status_code == 201
+    assert response.json()["source_id"] == root["id"]
+    assert root["source_id"] is None
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={
+            "parent_id": root["id"],
+            "source_id": "00000000-0000-0000-0000-000000000000",
+            "params": root["params"],
+        },
+    )
+    assert response.status_code == 404
+
+
 async def test_get_sites_and_single_site(client, rectangle_site):
     body = await create_test_site(client, rectangle_site)
     site_id = body["site"]["id"]
@@ -145,6 +167,15 @@ async def test_cross_site_references_rejected(client, rectangle_site, notched_si
     response = await client.post(
         f"/api/v1/sites/{site_a['site']['id']}/options",
         json={"parent_id": site_b["root_option"]["id"], "params": site_a["root_option"]["params"]},
+    )
+    assert response.status_code == 404
+    response = await client.post(
+        f"/api/v1/sites/{site_a['site']['id']}/options",
+        json={
+            "parent_id": site_a["root_option"]["id"],
+            "source_id": site_b["root_option"]["id"],
+            "params": site_a["root_option"]["params"],
+        },
     )
     assert response.status_code == 404
 
