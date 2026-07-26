@@ -208,8 +208,8 @@ export default function Editor({ site, option, onSave, onClose }) {
                 <p className="hint">GFA — суммарная площадь всех этажей всех зданий. Введите цель, чтобы проверить, достижима ли она.</p>
                 {result.gfa_check && (
                   <p className={result.gfa_check.reachable ? "gfa-ok" : "gfa-bad"}>
-                    {result.gfa_check.reachable ? "🟢 достижима" : "🔴 недостижима"} — максимум{" "}
-                    {fmt(result.gfa_check.max_possible_m2)} м²
+                    {result.gfa_check.reachable ? "🟢 достижима" : "🔴 недостижима"} — возможный диапазон{" "}
+                    {fmt(result.gfa_check.min_possible_m2)}…{fmt(result.gfa_check.max_possible_m2)} м²
                   </p>
                 )}
                 <MetricRow label="Площадь участка" value={`${fmt(result.metrics.site_area_m2)} м²`} />

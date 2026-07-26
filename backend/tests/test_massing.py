@@ -147,15 +147,26 @@ def test_empty_floors_rebuilt_with_default(rectangle_site):
     assert len(params.buildings[0].floors) == 5
 
 
-def test_gfa_target_check(rectangle_site):
-    params = MassingParams(setback_m=3.0, gfa_target_m2=4000.0)
+def test_gfa_target_check_accounts_for_movable_setback(rectangle_site):
+    params = MassingParams(setback_m=3.0, gfa_target_m2=6000.0)
     params, result = compute_massing(rectangle_site, params)
     assert result.gfa_check is not None
     assert result.gfa_check.reachable is True
-    assert result.gfa_check.max_possible_m2 == pytest.approx(8 * 646.0, rel=0.01)
-    params = params.model_copy(update={"gfa_target_m2": 6000.0})
+    assert result.gfa_check.max_possible_m2 == pytest.approx(8 * 1000.0)
+    assert 0 < result.gfa_check.min_possible_m2 < 30
+    params = params.model_copy(update={"gfa_target_m2": 9000.0})
     _, result = compute_massing(rectangle_site, params)
     assert result.gfa_check is not None
+    assert result.gfa_check.reachable is False
+
+
+def test_gfa_target_check_with_locked_building(rectangle_site):
+    base_params, _ = compute_massing(rectangle_site, None)
+    locked = base_params.buildings[0].model_copy(update={"locked": True})
+    params = base_params.model_copy(update={"buildings": [locked], "gfa_target_m2": 6000.0})
+    _, result = compute_massing(rectangle_site, params)
+    assert result.gfa_check is not None
+    assert result.gfa_check.max_possible_m2 == pytest.approx(8 * 646.0, rel=0.01)
     assert result.gfa_check.reachable is False
 
 

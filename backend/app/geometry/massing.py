@@ -69,6 +69,7 @@ class EnsembleMetrics(BaseModel):
 
 class GfaCheck(BaseModel):
     target_m2: float
+    min_possible_m2: float
     max_possible_m2: float
     reachable: bool
 
@@ -232,11 +233,18 @@ def compute_massing(points: list[Point], params: MassingParams | None) -> tuple[
     metrics = rollup_metrics(site, islands, buildings)
     gfa_check = None
     if params.gfa_target_m2 is not None and params.gfa_target_m2 > 0:
-        max_possible = sum(island.area for island in islands) * MAX_FLOORS
+        if any(item.locked for item in building_params):
+            bound_islands = islands
+            max_possible = sum(island.area for island in islands) * MAX_FLOORS
+        else:
+            bound_islands = polygons.inset_islands(site, setback_limit)
+            max_possible = site.area * MAX_FLOORS
+        min_possible = sum(polygons.min_contour_area(island) for island in bound_islands) * MIN_FLOOR_AREA_RATIO
         gfa_check = GfaCheck(
             target_m2=params.gfa_target_m2,
+            min_possible_m2=round(min_possible, 1),
             max_possible_m2=round(max_possible, 1),
-            reachable=params.gfa_target_m2 <= max_possible,
+            reachable=min_possible <= params.gfa_target_m2 <= max_possible,
         )
     result = MassingResult(
         status="ok",
