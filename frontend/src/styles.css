@@ -238,7 +238,7 @@ input {
 }
 
 .modal.editor {
-  width: 900px;
+  width: 980px;
 }
 
 .editor-header {
@@ -292,11 +292,22 @@ input {
   gap: 10px;
 }
 
-.plan-canvas,
 .iso-canvas {
   background: #fbfcfd;
   border: 1px solid #eceff3;
   border-radius: 6px;
+}
+
+.three-view {
+  border: 1px solid #eceff3;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f4f6f9;
+}
+
+.views .hint {
+  margin: 0;
+  text-align: center;
 }
 
 .controls {
@@ -400,4 +411,12 @@ input {
 .compare-table th:first-child,
 .compare-table td:first-child {
   text-align: left;
+}
+
+.row-delete {
+  border: none;
+  background: none;
+  color: #a33;
+  padding: 0 4px;
+  font-size: 13px;
 }

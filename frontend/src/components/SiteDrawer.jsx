@@ -25,6 +25,20 @@ function makeTransform(points) {
   return { toScreen, toWorld, minX, minY, maxX, maxY, scale };
 }
 
+function distanceToSegment(p, a, b) {
+  const abx = b[0] - a[0];
+  const aby = b[1] - a[1];
+  const lengthSq = abx * abx + aby * aby;
+  let t = 0;
+  if (lengthSq > 0) {
+    t = ((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / lengthSq;
+    t = Math.max(0, Math.min(1, t));
+  }
+  const cx = a[0] + t * abx;
+  const cy = a[1] + t * aby;
+  return Math.hypot(p[0] - cx, p[1] - cy);
+}
+
 export default function SiteDrawer({ onCreate, busy, error }) {
   const canvasRef = useRef(null);
   const [name, setName] = useState("Участок 1");
@@ -100,7 +114,22 @@ export default function SiteDrawer({ onCreate, busy, error }) {
   function handleMouseDown(event) {
     const [sx, sy] = canvasPosition(event);
     const vertex = findVertex(sx, sy);
-    if (vertex !== null) setDragIndex(vertex);
+    if (vertex !== null) {
+      setDragIndex(vertex);
+      return;
+    }
+    for (let i = 0; i < points.length; i += 1) {
+      const a = transform.toScreen(points[i][0], points[i][1]);
+      const b = transform.toScreen(points[(i + 1) % points.length][0], points[(i + 1) % points.length][1]);
+      if (distanceToSegment([sx, sy], a, b) <= 6) {
+        const world = transform.toWorld(sx, sy);
+        const next = [...points];
+        next.splice(i + 1, 0, world);
+        setPoints(next);
+        setDragIndex(i + 1);
+        return;
+      }
+    }
   }
 
   function handleMouseMove(event) {
@@ -108,6 +137,27 @@ export default function SiteDrawer({ onCreate, busy, error }) {
     const [sx, sy] = canvasPosition(event);
     const world = transform.toWorld(sx, sy);
     setPoints(points.map((point, index) => (index === dragIndex ? world : point)));
+  }
+
+  function handleContextMenu(event) {
+    event.preventDefault();
+    const [sx, sy] = canvasPosition(event);
+    const vertex = findVertex(sx, sy);
+    if (vertex !== null && points.length > 3) {
+      setPoints(points.filter((_, index) => index !== vertex));
+    }
+  }
+
+  function addPoint() {
+    const last = points[points.length - 1];
+    const first = points[0];
+    const middle = [Math.round((last[0] + first[0]) / 2), Math.round((last[1] + first[1]) / 2)];
+    setPoints([...points, middle]);
+  }
+
+  function removePoint(index) {
+    if (points.length <= 3) return;
+    setPoints(points.filter((_, i) => i !== index));
   }
 
   function updateCoordinate(index, axis, value) {
@@ -120,7 +170,8 @@ export default function SiteDrawer({ onCreate, busy, error }) {
     <div className="site-drawer">
       <h2>Задайте участок</h2>
       <p className="hint">
-        Выберите образец участка или задайте координаты в таблице. Тяните вершину на холсте, чтобы передвинуть её.
+        Точки привязаны к сетке 1×1 м. Тяните вершину, чтобы передвинуть. Клик по ребру — вставить точку в этом месте.
+        Правый клик по вершине — удалить.
       </p>
       <div className="drawer-layout">
         <canvas
@@ -132,6 +183,7 @@ export default function SiteDrawer({ onCreate, busy, error }) {
           onMouseMove={handleMouseMove}
           onMouseUp={() => setDragIndex(null)}
           onMouseLeave={() => setDragIndex(null)}
+          onContextMenu={handleContextMenu}
         />
         <div className="drawer-side">
           <label>
@@ -151,6 +203,7 @@ export default function SiteDrawer({ onCreate, busy, error }) {
                 <th>#</th>
                 <th>X, м</th>
                 <th>Y, м</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -163,17 +216,20 @@ export default function SiteDrawer({ onCreate, busy, error }) {
                   <td>
                     <input type="number" step="1" value={y} onChange={(e) => updateCoordinate(index, 1, e.target.value)} />
                   </td>
+                  <td>
+                    <button type="button" className="row-delete" disabled={points.length <= 3} onClick={() => removePoint(index)}>
+                      ✕
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <button type="button" onClick={addPoint}>
+            + Добавить точку
+          </button>
           {error && <p className="error">{error}</p>}
-          <button
-            type="button"
-            className="primary"
-            disabled={busy || points.length < 3}
-            onClick={() => onCreate(name, points)}
-          >
+          <button type="button" className="primary" disabled={busy || points.length < 3} onClick={() => onCreate(name, points)}>
             {busy ? "Строим…" : "Построить первый вариант"}
           </button>
         </div>
