@@ -305,6 +305,11 @@ input {
   background: #f4f6f9;
 }
 
+.views .hint {
+  margin: 0;
+  text-align: center;
+}
+
 .controls {
   flex: 1;
   display: flex;

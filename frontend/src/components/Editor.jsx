@@ -108,10 +108,16 @@ export default function Editor({ site, option, onSave, onClose }) {
       ? null
       : { building: active.building, floor: active.type === "floor" ? active.floor : undefined };
 
-  const lockedBuildings = params.buildings.filter((building) => building.locked).length;
+  const lockedBuildings = params.buildings
+    .map((building, index) => (building.locked ? index + 1 : null))
+    .filter(Boolean);
   const activeBuilding = active.type === "ensemble" ? null : params.buildings[active.building];
-  const heightLockedFloors = activeBuilding ? activeBuilding.floors.filter((floor) => floor.height_locked).length : 0;
-  const contourLockedFloors = activeBuilding ? activeBuilding.floors.filter((floor) => floor.contour_locked).length : 0;
+  const heightLockedFloors = activeBuilding
+    ? activeBuilding.floors.map((floor, index) => (floor.height_locked ? index + 1 : null)).filter(Boolean)
+    : [];
+  const contourLockedFloors = activeBuilding
+    ? activeBuilding.floors.map((floor, index) => (floor.contour_locked ? index + 1 : null)).filter(Boolean)
+    : [];
 
   return (
     <div className="modal-backdrop">
@@ -179,9 +185,15 @@ export default function Editor({ site, option, onSave, onClose }) {
                   step={0.1}
                   value={params.setback_m}
                   unit="м"
-                  disabled={lockedBuildings > 0}
+                  disabled={lockedBuildings.length > 0}
                   onChange={(value) => update((p) => (p.setback_m = value))}
                 />
+                {lockedBuildings.length > 0 && (
+                  <p className="hint">
+                    Отступ заблокирован. Чтобы менять его, снимите «Зафиксировать здание»:{" "}
+                    {lockedBuildings.map((number) => `Здание ${number}`).join(", ")}.
+                  </p>
+                )}
                 <label className="target-row">
                   Цель GFA, м²
                   <input
@@ -222,9 +234,15 @@ export default function Editor({ site, option, onSave, onClose }) {
                   step={0.1}
                   value={buildings[active.building].height_m}
                   unit="м"
-                  disabled={heightLockedFloors > 0}
+                  disabled={heightLockedFloors.length > 0}
                   onChange={(value) => update((p) => (p.buildings[active.building].total_height_m = value))}
                 />
+                {heightLockedFloors.length > 0 && (
+                  <p className="hint">
+                    Высота заблокирована. Снимите «Зафиксировать высоту»:{" "}
+                    {heightLockedFloors.map((number) => `Этаж ${number}`).join(", ")}.
+                  </p>
+                )}
                 <SliderRow
                   label="Площадь контура"
                   min={buildings[active.building].min_contour_area_m2}
@@ -232,9 +250,15 @@ export default function Editor({ site, option, onSave, onClose }) {
                   step={1}
                   value={buildings[active.building].contour_area_m2}
                   unit="м²"
-                  disabled={contourLockedFloors > 0}
+                  disabled={contourLockedFloors.length > 0}
                   onChange={(value) => update((p) => (p.buildings[active.building].contour_area_m2 = value))}
                 />
+                {contourLockedFloors.length > 0 && (
+                  <p className="hint">
+                    Контур заблокирован. Снимите «Зафиксировать контур»:{" "}
+                    {contourLockedFloors.map((number) => `Этаж ${number}`).join(", ")}.
+                  </p>
+                )}
                 <label className="lock-row">
                   <input
                     type="checkbox"
