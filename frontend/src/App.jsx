@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createOption, createSite, getHealth } from "./api.js";
+import Board from "./components/Board.jsx";
 import Editor from "./components/Editor.jsx";
 import SiteDrawer from "./components/SiteDrawer.jsx";
 
@@ -24,7 +25,7 @@ export default function App() {
       const created = await createSite(name, polygon);
       setSite(created.site);
       setOptions([created.root_option]);
-      setEditing(created.root_option);
+      setEditing(null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -40,7 +41,7 @@ export default function App() {
   }
 
   function handleReset() {
-    if (!window.confirm("Сбросить работу и вернуться к заданию участка?")) return;
+    if (!window.confirm("Сбросить доску и вернуться к заданию участка?")) return;
     setSite(null);
     setOptions([]);
     setEditing(null);
@@ -69,20 +70,7 @@ export default function App() {
 
       {!site && <SiteDrawer onCreate={handleCreateSite} busy={busy} error={error} />}
 
-      {site && (
-        <div className="options-strip">
-          {options.map((option, index) => (
-            <button
-              key={option.id}
-              type="button"
-              className={editing?.id === option.id ? "chip active" : "chip"}
-              onClick={() => setEditing(option)}
-            >
-              {option.name || `Вариант ${index + 1}`}
-            </button>
-          ))}
-        </div>
-      )}
+      {site && <Board options={options} onOpen={(option) => setEditing(option)} />}
 
       {editing && <Editor site={site} option={editing} onSave={handleSaveOption} onClose={() => setEditing(null)} />}
     </main>
