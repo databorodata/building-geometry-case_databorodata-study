@@ -191,6 +191,11 @@ input {
   box-shadow: 0 1px 3px rgba(20, 30, 40, 0.08);
 }
 
+.card.selected {
+  border-color: #3866a8;
+  box-shadow: 0 0 0 2px rgba(56, 102, 168, 0.3);
+}
+
 .card-title {
   font-weight: 600;
   font-size: 13px;
@@ -378,4 +383,21 @@ input {
 
 .editor-footer input {
   width: 240px;
+}
+
+.compare-table {
+  border-collapse: collapse;
+  min-width: 480px;
+}
+
+.compare-table th,
+.compare-table td {
+  border: 1px solid #e1e5ea;
+  padding: 6px 12px;
+  text-align: right;
+}
+
+.compare-table th:first-child,
+.compare-table td:first-child {
+  text-align: left;
 }

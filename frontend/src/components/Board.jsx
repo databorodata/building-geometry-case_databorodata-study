@@ -43,7 +43,7 @@ function layoutOptions(options) {
   return { cells, links, rows: nextRow + 1 };
 }
 
-export default function Board({ options, onOpen }) {
+export default function Board({ options, onOpen, compareIds, onToggleCompare }) {
   const { cells, links, rows } = layoutOptions(options);
   const cols = Math.max(...cells.map((cell) => cell.col)) + 1;
   const width = cols * COL_W + 40;
@@ -63,7 +63,11 @@ export default function Board({ options, onOpen }) {
           })}
         </svg>
         {cells.map(({ option, row, col }, index) => (
-          <div key={option.id} className="card" style={{ left: col * COL_W, top: row * ROW_H }}>
+          <div
+            key={option.id}
+            className={`card${compareIds.includes(option.id) ? " selected" : ""}`}
+            style={{ left: col * COL_W, top: row * ROW_H }}
+          >
             <div className="card-title">{option.name || `Вариант ${index + 1}`}</div>
             <IsoView result={option.result} width={CARD_W - 16} height={110} />
             <div className="card-metrics">
@@ -79,6 +83,14 @@ export default function Board({ options, onOpen }) {
               <button type="button" onClick={() => onOpen(option)}>
                 Открыть
               </button>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={compareIds.includes(option.id)}
+                  onChange={() => onToggleCompare(option.id)}
+                />
+                сравнить
+              </label>
             </div>
           </div>
         ))}

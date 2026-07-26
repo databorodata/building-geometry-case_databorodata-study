@@ -38,3 +38,7 @@ export async function createSite(name, polygon) {
 export async function createOption(siteId, parentId, name, params) {
   return post(`/sites/${siteId}/options`, { parent_id: parentId, name, params });
 }
+
+export async function compareOptions(leftId, rightId) {
+  return request(`/options/${leftId}/compare/${rightId}`);
+}
