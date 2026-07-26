@@ -49,6 +49,17 @@ async def test_preview_accepts_closing_point_and_floats(client):
     assert response.json()["result"]["metrics"]["building_count"] == 1
 
 
+async def test_preview_fit_command_roundtrip(client, rectangle_site):
+    response = await client.post("/api/v1/massing/preview", json={"polygon": rectangle_site})
+    params = response.json()["params"]
+    params["fit_gfa_m2"] = 4000
+    response = await client.post("/api/v1/massing/preview", json={"polygon": rectangle_site, "params": params})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["params"]["fit_gfa_m2"] is None
+    assert body["result"]["metrics"]["gfa_m2"] == pytest.approx(4000.0, rel=0.01)
+
+
 async def test_preview_rejects_too_small_site(client):
     payload = {"polygon": [[0, 0], [3, 0], [3, 3], [0, 3]]}
     response = await client.post("/api/v1/massing/preview", json=payload)

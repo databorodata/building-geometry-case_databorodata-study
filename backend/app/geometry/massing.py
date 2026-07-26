@@ -7,6 +7,7 @@ from app.geometry import heights, polygons
 from app.geometry.limits import (
     DEFAULT_FLOOR_HEIGHT_M,
     DEFAULT_SETBACK_M,
+    FLOOR_HEIGHT_MIN_M,
     GOLDEN_RATIO,
     MAX_BUILDING_HEIGHT_M,
     MAX_FLOORS,
@@ -32,6 +33,7 @@ class BuildingParams(BaseModel):
 class MassingParams(BaseModel):
     setback_m: float = DEFAULT_SETBACK_M
     gfa_target_m2: float | None = None
+    fit_gfa_m2: float | None = None
     buildings: list[BuildingParams] = []
 
 
@@ -116,6 +118,15 @@ def apply_height_edit(params: BuildingParams) -> BuildingParams:
     return params.model_copy(update={"floors": floors, "total_height_m": None})
 
 
+class FitInfo(BaseModel):
+    island_area: float
+    min_area: float
+    gfa: float
+    min_gfa: float
+    max_gfa: float
+    active: bool
+
+
 def clamped_ratios(floors: list[FloorParams]) -> list[float]:
     return [max(MIN_FLOOR_AREA_RATIO, min(1.0, floor.area_ratio)) for floor in floors]
 
@@ -124,6 +135,135 @@ def clamped_contour_area(params: BuildingParams, island_area: float, min_area: f
     if params.contour_area_m2 is None:
         return island_area
     return max(min(params.contour_area_m2, island_area), min_area)
+
+
+def fit_building_to_gfa(params: BuildingParams, island_area: float, min_area: float, target: float) -> BuildingParams:
+    floors = params.floors[:MAX_FLOORS]
+    if not floors:
+        return params
+    contour = clamped_contour_area(params, island_area, min_area)
+    ratios = clamped_ratios(floors)
+    heights_sum = sum(heights.clamp_floor_height(floor.height_m) for floor in floors)
+    current_gfa = contour * sum(ratios)
+    can_floors = not any(floor.height_locked for floor in floors)
+    can_contour = not any(floor.contour_locked for floor in floors)
+    count = len(floors)
+    counts = range(1, MAX_FLOORS + 1) if can_floors else range(count, count + 1)
+    if contour > 0:
+        ideal_count = count + 0.5 * (target - current_gfa) / contour
+    else:
+        ideal_count = float(count)
+
+    best_key: tuple[float, float, int] | None = None
+    best_count = count
+    best_contour = contour
+    best_gfa = current_gfa
+    for candidate in counts:
+        if candidate > count:
+            added = candidate - count
+            if heights_sum + added * FLOOR_HEIGHT_MIN_M > MAX_BUILDING_HEIGHT_M + 1e-9:
+                continue
+            ratio_sum = sum(ratios) + added
+        else:
+            ratio_sum = sum(ratios[:candidate])
+        if can_contour:
+            new_contour = max(min(target / ratio_sum, island_area), min_area)
+        else:
+            new_contour = contour
+        gfa = new_contour * ratio_sum
+        key = (round(abs(target - gfa), 3), abs(candidate - ideal_count), abs(candidate - count))
+        if best_key is None or key < best_key:
+            best_key = key
+            best_count = candidate
+            best_contour = new_contour
+            best_gfa = gfa
+
+    if abs(target - best_gfa) >= abs(target - current_gfa) - 1e-9:
+        return params
+    new_floors = [floor.model_copy() for floor in floors[:best_count]]
+    if best_count > count:
+        added = best_count - count
+        room = (MAX_BUILDING_HEIGHT_M - heights_sum) / added
+        height = min(DEFAULT_FLOOR_HEIGHT_M, math.floor(room * 10) / 10)
+        for _ in range(added):
+            new_floors.append(FloorParams(height_m=height))
+    if best_contour >= island_area - 0.05:
+        contour_param = None
+    else:
+        contour_param = round(best_contour, 1)
+    return params.model_copy(update={"floors": new_floors, "contour_area_m2": contour_param, "total_height_m": None})
+
+
+def apply_gfa_fit(
+    building_params: list[BuildingParams], islands: list[Polygon], target_total: float
+) -> list[BuildingParams]:
+    infos: list[FitInfo] = []
+    for item, island in zip(building_params, islands):
+        island_area = island.area
+        min_area = polygons.min_contour_area(island)
+        floors = item.floors[:MAX_FLOORS]
+        ratios = clamped_ratios(floors)
+        contour = clamped_contour_area(item, island_area, min_area)
+        gfa = contour * sum(ratios)
+        can_floors = len(floors) > 0 and not any(floor.height_locked for floor in floors)
+        can_contour = len(floors) > 0 and not any(floor.contour_locked for floor in floors)
+        heights_sum = sum(heights.clamp_floor_height(floor.height_m) for floor in floors)
+        if can_floors:
+            max_added = int((MAX_BUILDING_HEIGHT_M - heights_sum) / FLOOR_HEIGHT_MIN_M)
+            max_count = min(MAX_FLOORS, len(floors) + max_added)
+            max_ratio = sum(ratios) + (max_count - len(floors))
+            min_ratio = sum(ratios[:1])
+        else:
+            max_ratio = sum(ratios)
+            min_ratio = sum(ratios)
+        max_contour = island_area if can_contour else contour
+        min_contour_value = min_area if can_contour else contour
+        active = not item.locked and len(floors) > 0 and (can_floors or can_contour)
+        infos.append(
+            FitInfo(
+                island_area=island_area,
+                min_area=min_area,
+                gfa=gfa,
+                min_gfa=min_contour_value * min_ratio,
+                max_gfa=max_contour * max_ratio,
+                active=active,
+            )
+        )
+
+    active_indexes = [index for index, info in enumerate(infos) if info.active]
+    if not active_indexes:
+        return building_params
+    fixed = sum(info.gfa for info in infos if not info.active)
+    remaining = max(target_total - fixed, 0.0)
+    active_gfa = sum(infos[index].gfa for index in active_indexes)
+    targets: dict[int, float] = {}
+    for index in active_indexes:
+        if active_gfa > 0:
+            share = infos[index].gfa / active_gfa
+        else:
+            share = 1.0 / len(active_indexes)
+        raw = remaining * share
+        targets[index] = max(min(raw, infos[index].max_gfa), infos[index].min_gfa)
+    unmet = remaining - sum(targets.values())
+    if unmet > 0:
+        headroom = {index: infos[index].max_gfa - targets[index] for index in active_indexes}
+        total_headroom = sum(headroom.values())
+        if total_headroom > 0:
+            for index in active_indexes:
+                targets[index] += unmet * headroom[index] / total_headroom
+    elif unmet < 0:
+        droproom = {index: targets[index] - infos[index].min_gfa for index in active_indexes}
+        total_droproom = sum(droproom.values())
+        if total_droproom > 0:
+            for index in active_indexes:
+                targets[index] += unmet * droproom[index] / total_droproom
+
+    fitted = list(building_params)
+    for index in active_indexes:
+        fitted[index] = fit_building_to_gfa(
+            building_params[index], infos[index].island_area, infos[index].min_area, targets[index]
+        )
+    return fitted
 
 
 def build_building(island: Polygon, params: BuildingParams) -> BuildingResult:
@@ -218,7 +358,7 @@ def compute_massing(points: list[Point], params: MassingParams | None) -> tuple[
             metrics=empty_metrics,
             buildings=[],
         )
-        return params.model_copy(update={"setback_m": setback}), result
+        return params.model_copy(update={"setback_m": setback, "fit_gfa_m2": None}), result
     building_params = params.buildings
     if len(building_params) != len(islands):
         building_params = [BuildingParams(floors=default_floor_stack(island)) for island in islands]
@@ -228,7 +368,9 @@ def compute_massing(points: list[Point], params: MassingParams | None) -> tuple[
             item = item.model_copy(update={"floors": default_floor_stack(island)})
         refreshed.append(item)
     building_params = [apply_height_edit(item) for item in refreshed]
-    params = params.model_copy(update={"setback_m": setback, "buildings": building_params})
+    if params.fit_gfa_m2 is not None and params.fit_gfa_m2 > 0:
+        building_params = apply_gfa_fit(building_params, islands, params.fit_gfa_m2)
+    params = params.model_copy(update={"setback_m": setback, "buildings": building_params, "fit_gfa_m2": None})
     buildings = [build_building(island, item) for island, item in zip(islands, building_params)]
     metrics = rollup_metrics(site, islands, buildings)
     gfa_check = None
