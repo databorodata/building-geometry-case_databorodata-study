@@ -12,6 +12,7 @@ async function request(path, options) {
     } catch {}
     throw new Error(message);
   }
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -37,6 +38,10 @@ export async function createSite(name, polygon) {
 
 export async function createOption(siteId, parentId, sourceId, name, params, kind = "save") {
   return post(`/sites/${siteId}/options`, { parent_id: parentId, source_id: sourceId, name, params, kind });
+}
+
+export async function deleteOption(optionId) {
+  return request(`/options/${optionId}`, { method: "DELETE" });
 }
 
 export async function compareOptions(leftId, rightId) {

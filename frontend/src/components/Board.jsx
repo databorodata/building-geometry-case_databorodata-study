@@ -53,11 +53,12 @@ function linkPath(from, to) {
   return `M ${x1} ${y1} H ${middle} V ${y2} H ${x2}`;
 }
 
-export default function Board({ options, onOpen, compareIds, onToggleCompare }) {
+export default function Board({ options, onOpen, onDelete, compareIds, onToggleCompare }) {
   const { cells, links, positions, rows } = layoutTree(options);
   const cols = Math.max(...cells.map((cell) => cell.col)) + 1;
   const width = cols * COL_W + 40;
   const height = rows * ROW_H + 20;
+  const parentIds = new Set(options.filter((option) => option.parent_id).map((option) => option.parent_id));
   const numberById = new Map(options.map((option, index) => [option.id, index + 1]));
   const optionById = new Map(options.map((option) => [option.id, option]));
 
@@ -70,7 +71,10 @@ export default function Board({ options, onOpen, compareIds, onToggleCompare }) 
       <div className="board" style={{ width, height }}>
         <svg className="board-links" width={width} height={height}>
           {links.map((link) => (
-            <path key={`${link.fromId}-${link.toId}`} d={linkPath(positions.get(link.fromId), positions.get(link.toId))} />
+            <path
+              key={`${link.fromId}-${link.toId}`}
+              d={linkPath(positions.get(link.fromId), positions.get(link.toId))}
+            />
           ))}
         </svg>
         {cells.map(({ option, row, col }) => (
@@ -84,6 +88,16 @@ export default function Board({ options, onOpen, compareIds, onToggleCompare }) 
                 {optionLabel(option)}
                 {option.kind === "fork" && <span className="kind-badge">ветка</span>}
               </span>
+              {option.parent_id && !parentIds.has(option.id) && (
+                <button
+                  type="button"
+                  className="row-delete"
+                  title="Удалить карточку"
+                  onClick={() => onDelete(option, optionLabel(option))}
+                >
+                  ✕
+                </button>
+              )}
             </div>
             {option.source_id && option.source_id !== option.parent_id && optionById.has(option.source_id) && (
               <div className="card-source">из «{optionLabel(optionById.get(option.source_id))}»</div>

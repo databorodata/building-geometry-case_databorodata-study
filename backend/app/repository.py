@@ -122,3 +122,15 @@ async def list_options(conn: AsyncConnection, site_id: UUID) -> list[OptionRecor
         )
         rows = await cur.fetchall()
     return [_option_record(row) for row in rows]
+
+
+async def count_children(conn: AsyncConnection, option_id: UUID) -> int:
+    async with conn.cursor() as cur:
+        await cur.execute("SELECT count(*) FROM options WHERE parent_id = %s", (option_id,))
+        row = await cur.fetchone()
+    return int(row[0]) if row else 0
+
+
+async def delete_option(conn: AsyncConnection, option_id: UUID) -> None:
+    async with conn.cursor() as cur:
+        await cur.execute("DELETE FROM options WHERE id = %s", (option_id,))
