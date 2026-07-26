@@ -66,7 +66,7 @@ function wallShade(p1, p2) {
   return `rgb(${value - 30}, ${value - 10}, ${value + 20})`;
 }
 
-function drawFloor(ctx, toScreen, outline, level, height, highlighted) {
+function drawFloor(ctx, toScreen, outline, level, height) {
   const edges = outline.map((point, index) => [point, outline[(index + 1) % outline.length]]);
   edges.sort((a, b) => {
     const depthA = Math.max(a[0][0] + a[0][1], a[1][0] + a[1][1]);
@@ -81,7 +81,7 @@ function drawFloor(ctx, toScreen, outline, level, height, highlighted) {
       toScreen(p1[0], p1[1], level + height),
     ];
     drawRing(ctx, quad);
-    ctx.fillStyle = highlighted ? "#e8a44c" : wallShade(p1, p2);
+    ctx.fillStyle = wallShade(p1, p2);
     ctx.fill();
     ctx.strokeStyle = "rgba(40, 60, 90, 0.35)";
     ctx.lineWidth = 0.5;
@@ -89,14 +89,14 @@ function drawFloor(ctx, toScreen, outline, level, height, highlighted) {
   }
   const top = outline.map(([x, y]) => toScreen(x, y, level + height));
   drawRing(ctx, top);
-  ctx.fillStyle = highlighted ? "#f5c98a" : "#d7e3f2";
+  ctx.fillStyle = "#d7e3f2";
   ctx.fill();
   ctx.strokeStyle = "rgba(40, 60, 90, 0.5)";
   ctx.lineWidth = 0.8;
   ctx.stroke();
 }
 
-export default function IsoView({ result, width, height, highlight }) {
+export default function IsoView({ result, width, height }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -116,20 +116,16 @@ export default function IsoView({ result, width, height, highlight }) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    const ordered = result.buildings
-      .map((building, index) => ({ building, index }))
-      .sort((a, b) => {
-        const depth = (item) => Math.min(...item.building.contour.map(([x, y]) => x + y));
-        return depth(a) - depth(b);
-      });
-    for (const { building, index } of ordered) {
-      building.floors.forEach((floor, floorIndex) => {
-        const highlighted =
-          highlight && highlight.building === index && (highlight.floor === undefined || highlight.floor === floorIndex);
-        drawFloor(ctx, toScreen, floor.outline, floor.level_m, floor.height_m, highlighted);
-      });
+    const ordered = [...result.buildings].sort((a, b) => {
+      const depth = (building) => Math.min(...building.contour.map(([x, y]) => x + y));
+      return depth(a) - depth(b);
+    });
+    for (const building of ordered) {
+      for (const floor of building.floors) {
+        drawFloor(ctx, toScreen, floor.outline, floor.level_m, floor.height_m);
+      }
     }
-  }, [result, width, height, highlight]);
+  }, [result, width, height]);
 
   return <canvas ref={canvasRef} width={width} height={height} className="iso-canvas" />;
 }

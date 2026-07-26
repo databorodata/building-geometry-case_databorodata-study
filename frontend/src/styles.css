@@ -238,7 +238,7 @@ input {
 }
 
 .modal.editor {
-  width: 900px;
+  width: 980px;
 }
 
 .editor-header {
@@ -292,11 +292,17 @@ input {
   gap: 10px;
 }
 
-.plan-canvas,
 .iso-canvas {
   background: #fbfcfd;
   border: 1px solid #eceff3;
   border-radius: 6px;
+}
+
+.three-view {
+  border: 1px solid #eceff3;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f4f6f9;
 }
 
 .controls {

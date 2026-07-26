@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { previewMassing } from "../api.js";
 import { fmt } from "../format.js";
-import IsoView from "./IsoView.jsx";
-import PlanView from "./PlanView.jsx";
+import ThreeView from "./ThreeView.jsx";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -164,8 +163,8 @@ export default function Editor({ site, option, onSave, onClose }) {
           </div>
 
           <div className="views">
-            <PlanView result={result} width={300} height={230} highlight={highlight} />
-            <IsoView result={result} width={300} height={230} highlight={highlight} />
+            <ThreeView result={result} width={430} height={430} highlight={highlight} />
+            <p className="hint">Вращайте мышью, колесо — масштаб</p>
             {result.status === "empty" && <p className="error">Отступ схлопнул участок</p>}
           </div>
 
