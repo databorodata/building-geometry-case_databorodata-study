@@ -431,3 +431,9 @@ input {
 .compare-table td:first-child {
   text-align: left;
 }
+
+.card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
