@@ -1,3 +1,10 @@
+"""Алгоритм высоты: раскладка общей высоты здания по этажам.
+
+Весь модуль считает в целых дециметрах (23…46 вместо 2.3…4.6): целые числа
+складываются и делятся точно, float-хвосты вида 16.400000000000002 исключены
+по построению. В метры конвертируем только на выходе.
+"""
+
 import math
 
 from app.geometry.limits import (
@@ -19,12 +26,20 @@ _MAX_TOTAL_DM = round(MAX_BUILDING_HEIGHT_M * 10)
 
 
 def clamp_floor_height(height_m: float) -> float:
+    """Прижимает высоту этажа к сетке 0.1 м и жёсткому диапазону [2.3; 4.6]."""
     height_dm = round(height_m * 10)
     height_dm = max(_FLOOR_MIN_DM, min(_FLOOR_MAX_DM, height_dm))
     return height_dm / 10
 
 
 def pick_floor_count(total_dm: int, current_count: int) -> int:
+    """Выбирает число этажей под общую высоту (в дециметрах).
+
+    Кандидаты — все допустимые этажности 1..8. Победитель — минимум по тройному
+    ключу: штраф за выход средней высоты из комфорта [2.8; 3.6] → близость к
+    текущему числу этажей (гистерезис: ползунок не «дребезжит» этажами) →
+    близость средней высоты к идеалу 3.0.
+    """
     count_min = max(1, math.ceil(total_dm / _FLOOR_MAX_DM))
     count_max = min(MAX_FLOORS, total_dm // _FLOOR_MIN_DM)
     if count_max < count_min:
@@ -42,12 +57,21 @@ def pick_floor_count(total_dm: int, current_count: int) -> int:
 
 
 def spread_floors(total_dm: int, count: int) -> list[float]:
+    """Раскладывает высоту на count этажей: деление с остатком, лишние дециметры — нижним этажам.
+
+    Разница между любыми двумя этажами не больше 0.1 м, сумма равна цели точно.
+    """
     base, extra = divmod(total_dm, count)
     heights_dm = [base + 1] * extra + [base] * (count - extra)
     return [height / 10 for height in heights_dm]
 
 
 def distribute_height(total_m: float, current_count: int) -> list[float]:
+    """Общая высота здания → список высот этажей (ползунок «Общая высота»).
+
+    Клэмп высоты в [2.3; 24] → выбор числа этажей → раскладка. По построению
+    каждый этаж попадает в [2.3; 4.6].
+    """
     total_dm = round(total_m * 10)
     total_dm = max(_FLOOR_MIN_DM, min(_MAX_TOTAL_DM, total_dm))
     count = pick_floor_count(total_dm, current_count)

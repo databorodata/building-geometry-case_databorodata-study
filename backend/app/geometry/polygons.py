@@ -1,3 +1,5 @@
+"""Геометрия участка: валидация, отступ (inset) с островами, эрозия, пределы шкал."""
+
 import math
 
 from shapely.geometry import MultiPolygon, Polygon
@@ -9,6 +11,8 @@ Point = tuple[float, float]
 
 
 class SiteError(ValueError):
+    """Ошибка валидации участка: машиночитаемый code + текст для пользователя (HTTP-слой отдаёт 422)."""
+
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
@@ -16,6 +20,13 @@ class SiteError(ValueError):
 
 
 def validate_site(points: list[Point]) -> Polygon:
+    """Превращает список вершин в проверенный полигон Shapely или бросает SiteError.
+
+    Проверки по порядку: координаты конечны (нет NaN/inf); дублированная замыкающая
+    точка отбрасывается; минимум 3 различные точки; нет самопересечений («бабочка»);
+    площадь не меньше 20 м². Кривой ввод отклоняем, а не чиним: честная ошибка
+    с кодом лучше тихого ремонта.
+    """
     cleaned = [(float(x), float(y)) for x, y in points]
     for x, y in cleaned:
         if not (math.isfinite(x) and math.isfinite(y)):
@@ -33,6 +44,7 @@ def validate_site(points: list[Point]) -> Polygon:
 
 
 def polygon_parts(geometry: BaseGeometry) -> list[Polygon]:
+    """Приводит результат операции Shapely к списку полигонов (Polygon / MultiPolygon / пусто)."""
     if geometry.is_empty:
         return []
     if isinstance(geometry, Polygon):
@@ -43,11 +55,19 @@ def polygon_parts(geometry: BaseGeometry) -> list[Polygon]:
 
 
 def polygon_outline(polygon: Polygon) -> list[Point]:
+    """Полигон → вершины для JSON: без дублированной замыкающей точки, координаты с точностью 1 см."""
     coords = list(polygon.exterior.coords)[:-1]
     return [(round(x, 2), round(y, 2)) for x, y in coords]
 
 
 def inset_islands(site: Polygon, depth: float) -> list[Polygon]:
+    """Отступ: вжимает границу участка внутрь на depth метров и возвращает «острова».
+
+    Застраиваемая область может остаться одним куском, распасться на несколько
+    (каждый остров станет отдельным зданием) или исчезнуть. Осколки меньше 20 м²
+    отбрасываются; острова отсортированы по центроиду (слева-направо), чтобы
+    нумерация зданий была стабильной между запросами.
+    """
     if depth <= 0:
         shrunk: BaseGeometry = site
     else:
@@ -58,6 +78,12 @@ def inset_islands(site: Polygon, depth: float) -> list[Polygon]:
 
 
 def max_setback(site: Polygon) -> float:
+    """Наибольший отступ, при котором остаётся хотя бы один остров (правый край шкалы «Отступ»).
+
+    Двоичный поиск по глубине: площадь монотонно убывает с отступом (расщепление её
+    только делит), значит граница «остров есть → островов нет» ровно одна. Результат
+    округляется вниз к шагу 0.1 — на округлённом значении остров гарантированно есть.
+    """
     min_x, min_y, max_x, max_y = site.bounds
     low = 0.0
     high = max(max_x - min_x, max_y - min_y)
@@ -71,6 +97,14 @@ def max_setback(site: Polygon) -> float:
 
 
 def erode_to_area(polygon: Polygon, target_area: float) -> Polygon:
+    """Вжимает полигон внутрь так, чтобы его площадь стала близка к цели (чуть сверху).
+
+    Формулы «глубина ↔ площадь» для произвольной формы нет, поэтому глубина вжатия
+    подбирается двоичным поиском (вилка от 0 до габарита, 40 итераций). Возвращается
+    срез со стороны «площадь чуть больше цели» — безопасно для порогов вида «этаж не
+    меньше 50 % контура». Если полигон распался — крупнейший кусок; цель не меньше
+    текущей площади — полигон возвращается нетронутым.
+    """
     if target_area >= polygon.area:
         return polygon
     min_x, min_y, max_x, max_y = polygon.bounds
@@ -91,6 +125,12 @@ def erode_to_area(polygon: Polygon, target_area: float) -> Polygon:
 
 
 def min_contour_area(contour: Polygon) -> float:
+    """Наименьшая площадь, до которой контур можно вжать, не разорвав его (левый край шкалы контура).
+
+    Линейный проход с шагом 0.1: вжимаем, пока контур остаётся одним куском ≥ 20 м².
+    Число кусков немонотонно (2 куска могут снова стать 1, когда мелкий исчезнет),
+    поэтому честный скан по сетке шага ползунка надёжнее двоичного поиска.
+    """
     area = contour.area
     depth = SETBACK_STEP_M
     while True:

@@ -1,3 +1,5 @@
+"""Операции над вариантом: чтение, удаление листа, сравнение двух вариантов."""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +27,7 @@ class CompareResponse(BaseModel):
 
 
 def metrics_delta(left: EnsembleMetrics, right: EnsembleMetrics) -> dict[str, float]:
+    """Дельты «правый минус левый» по семи метрикам — колонка «Разница» в окне сравнения."""
     return {
         "footprint_area_m2": round(right.footprint_area_m2 - left.footprint_area_m2, 1),
         "gfa_m2": round(right.gfa_m2 - left.gfa_m2, 1),
@@ -37,6 +40,7 @@ def metrics_delta(left: EnsembleMetrics, right: EnsembleMetrics) -> dict[str, fl
 
 
 async def load_option(conn: AsyncConnection, option_id: UUID) -> OptionResponse:
+    """Достаёт вариант или бросает 404 — общий помощник роутов этого файла."""
     record = await repository.get_option(conn, option_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Option not found")
@@ -45,11 +49,17 @@ async def load_option(conn: AsyncConnection, option_id: UUID) -> OptionResponse:
 
 @router.get("/{option_id}")
 async def get_option(option_id: UUID, conn: AsyncConnection = Depends(get_connection)) -> OptionResponse:
+    """Полный снапшот варианта (параметры + результат)."""
     return await load_option(conn, option_id)
 
 
 @router.delete("/{option_id}", status_code=204)
 async def delete_option(option_id: UUID, conn: AsyncConnection = Depends(get_connection)) -> None:
+    """Удаление: только существующий (404), не корень (409) и только лист без детей (409).
+
+    Правило продублировано на сервере, хотя фронт показывает ✕ только листьям —
+    API защищает само себя.
+    """
     record = await repository.get_option(conn, option_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Option not found")
@@ -64,6 +74,10 @@ async def delete_option(option_id: UUID, conn: AsyncConnection = Depends(get_con
 async def compare_options(
     option_id: UUID, other_id: UUID, conn: AsyncConnection = Depends(get_connection)
 ) -> CompareResponse:
+    """Сравнение двух вариантов одного участка (чужой участок → 422).
+
+    Метрики берутся из сохранённых снапшотов — пересчёта нет, ответ мгновенный.
+    """
     left = await load_option(conn, option_id)
     right = await load_option(conn, other_id)
     if left.site_id != right.site_id:

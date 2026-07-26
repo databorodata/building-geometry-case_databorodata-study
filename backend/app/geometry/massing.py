@@ -1,3 +1,10 @@
+"""Модель массинга и его сборка: параметры → геометрия зданий → метрики.
+
+Единственная публичная точка входа — compute_massing(): чистая функция без HTTP
+и БД. Поля total_height_m и fit_gfa_m2 — одноразовые «команды»: сервер применяет
+их и возвращает параметры с погашенной командой (None).
+"""
+
 import math
 
 from pydantic import BaseModel
@@ -17,6 +24,8 @@ from app.geometry.polygons import Point
 
 
 class FloorParams(BaseModel):
+    """Параметры этажа: высота, доля пятна (меньше 1 — терраса) и два фиксатора."""
+
     height_m: float = DEFAULT_FLOOR_HEIGHT_M
     area_ratio: float = 1.0
     height_locked: bool = False
@@ -24,6 +33,8 @@ class FloorParams(BaseModel):
 
 
 class BuildingParams(BaseModel):
+    """Параметры здания: контур (None — весь остров), команда «общая высота», замок и этажи."""
+
     contour_area_m2: float | None = None
     total_height_m: float | None = None
     locked: bool = False
@@ -31,6 +42,8 @@ class BuildingParams(BaseModel):
 
 
 class MassingParams(BaseModel):
+    """Параметры варианта целиком: отступ, цель GFA, команда подгонки и здания."""
+
     setback_m: float = DEFAULT_SETBACK_M
     gfa_target_m2: float | None = None
     fit_gfa_m2: float | None = None
@@ -38,6 +51,8 @@ class MassingParams(BaseModel):
 
 
 class FloorResult(BaseModel):
+    """Построенный этаж: контур для 3D, отметка низа, высота, площадь и объём."""
+
     outline: list[Point]
     level_m: float
     height_m: float
@@ -46,6 +61,8 @@ class FloorResult(BaseModel):
 
 
 class BuildingResult(BaseModel):
+    """Построенное здание + границы шкал: island_area — max контура, min_contour — его min."""
+
     contour: list[Point]
     contour_area_m2: float
     island_area_m2: float
@@ -58,6 +75,8 @@ class BuildingResult(BaseModel):
 
 
 class EnsembleMetrics(BaseModel):
+    """Свёртка метрик ансамбля: площади, GFA, объём, покрытие, FAR, макс. высота, число зданий."""
+
     site_area_m2: float
     buildable_area_m2: float
     footprint_area_m2: float
@@ -70,6 +89,8 @@ class EnsembleMetrics(BaseModel):
 
 
 class GfaCheck(BaseModel):
+    """Проверка цели GFA: достижима ли она в диапазоне [min_possible; max_possible]."""
+
     target_m2: float
     min_possible_m2: float
     max_possible_m2: float
@@ -77,6 +98,8 @@ class GfaCheck(BaseModel):
 
 
 class MassingResult(BaseModel):
+    """Полный результат расчёта: статус, предел отступа, контуры, метрики и проверка цели."""
+
     status: str
     reason: str | None = None
     max_setback_m: float
@@ -87,6 +110,12 @@ class MassingResult(BaseModel):
 
 
 def default_floor_stack(island: Polygon) -> list[FloorParams]:
+    """φ-дефолт этажей одного здания: высота = средний фасад / 1.618 («дом шире, чем выше»).
+
+    Полученная высота прогоняется через алгоритм этажей с якорем «этажи ≈ 3.0».
+    Клэмпы диапазонов дают краевые случаи бесплатно: крошечный остров → 1 этаж,
+    огромный → 8 этажей / 24 м.
+    """
     min_x, min_y, max_x, max_y = island.bounds
     facade_m = ((max_x - min_x) + (max_y - min_y)) / 2
     ideal_height_m = facade_m / GOLDEN_RATIO
@@ -96,6 +125,11 @@ def default_floor_stack(island: Polygon) -> list[FloorParams]:
 
 
 def default_params(site: Polygon) -> MassingParams:
+    """Полный дефолт участка — содержимое первой карточки.
+
+    Отступ = min(3 м, половина предельного): дефолт никогда не подходит к обрыву
+    ближе половины. На каждый остров — своя φ-стопка этажей.
+    """
     limit = polygons.max_setback(site)
     half_limit = limit / 2
     safe_limit = math.floor(half_limit * 10) / 10
@@ -106,6 +140,11 @@ def default_params(site: Polygon) -> MassingParams:
 
 
 def apply_height_edit(params: BuildingParams) -> BuildingParams:
+    """Исполняет команду «общая высота»: пересобирает этажи и гасит команду.
+
+    Существующие этажи сохраняют остальные свойства (долю пятна, фиксаторы) по
+    индексу, новые этажи — дефолтные. Без команды параметры возвращаются как есть.
+    """
     if params.total_height_m is None:
         return params
     new_heights = heights.distribute_height(params.total_height_m, max(1, len(params.floors)))
@@ -119,6 +158,8 @@ def apply_height_edit(params: BuildingParams) -> BuildingParams:
 
 
 class FitInfo(BaseModel):
+    """Паспорт здания для подгонки GFA: текущая GFA, пределы min/max и признак участия."""
+
     island_area: float
     min_area: float
     gfa: float
@@ -128,16 +169,32 @@ class FitInfo(BaseModel):
 
 
 def clamped_ratios(floors: list[FloorParams]) -> list[float]:
+    """Доли пятна этажей, прижатые к [0.5; 1.0] — единственная формула этого клэмпа."""
     return [max(MIN_FLOOR_AREA_RATIO, min(1.0, floor.area_ratio)) for floor in floors]
 
 
 def clamped_contour_area(params: BuildingParams, island_area: float, min_area: float) -> float:
+    """Площадь контура, прижатая к [минимум до разрыва; площадь острова]; None — весь остров.
+
+    Единственная формула этого клэмпа: подгонка GFA предсказывает по ней же, по
+    которой build_building строит — рассинхрон исключён.
+    """
     if params.contour_area_m2 is None:
         return island_area
     return max(min(params.contour_area_m2, island_area), min_area)
 
 
 def fit_building_to_gfa(params: BuildingParams, island_area: float, min_area: float, target: float) -> BuildingParams:
+    """Подгоняет одно здание под цель GFA: «этажи — грубый рычаг, контур — точный».
+
+    GFA = контур × Σ долей; высоты этажей на GFA не влияют. Перебираются все
+    допустимые этажности (≤ 8 кандидатов, добавление этажей проверяется на потолок
+    24 м), для каждой контур считается закрытой формулой цель / Σ долей с клэмпами.
+    Победитель: минимальная ошибка → близость к политике «изменение пополам между
+    этажами и контуром» → минимальное шевеление текущей этажности. Фиксаторы
+    выключают соответствующий рычаг. Если лучший кандидат не приближает к цели —
+    здание не трогается.
+    """
     floors = params.floors[:MAX_FLOORS]
     if not floors:
         return params
@@ -197,6 +254,13 @@ def fit_building_to_gfa(params: BuildingParams, island_area: float, min_area: fl
 def apply_gfa_fit(
     building_params: list[BuildingParams], islands: list[Polygon], target_total: float
 ) -> list[BuildingParams]:
+    """Раскидывает общую цель GFA между зданиями и подгоняет каждое (кнопка «Подогнать»).
+
+    Три шага: паспортизация (текущая GFA, пределы, признак участия — здание с замком
+    сохраняет свою GFA); пропорциональное деление остатка цели по текущим долям с
+    клэмпами; один проход перераспределения — недобор упёршихся отдаётся зданиям
+    с запасом. Затем каждое активное здание подгоняется fit_building_to_gfa.
+    """
     infos: list[FitInfo] = []
     for item, island in zip(building_params, islands):
         island_area = island.area
@@ -267,6 +331,12 @@ def apply_gfa_fit(
 
 
 def build_building(island: Polygon, params: BuildingParams) -> BuildingResult:
+    """Строит здание из параметров: контур эрозией, стопка этажей, попутный подсчёт GFA и объёма.
+
+    Максимум 8 этажей; отметки копятся в целых дециметрах; этаж, пробивающий потолок
+    24 м, отбрасывается. Этаж с долей < 1 получает свой суженный контур (терраса).
+    В результат попадают и границы шкал контура (площадь острова и минимум до разрыва).
+    """
     min_area = polygons.min_contour_area(island)
     target_area = clamped_contour_area(params, island.area, min_area)
     contour = polygons.erode_to_area(island, target_area)
@@ -311,6 +381,10 @@ def build_building(island: Polygon, params: BuildingParams) -> BuildingResult:
 
 
 def rollup_metrics(site: Polygon, islands: list[Polygon], buildings: list[BuildingResult]) -> EnsembleMetrics:
+    """Свёртка метрик снизу вверх: этаж → здание → ансамбль (как Mass Floor → Mass в Revit).
+
+    Покрытие = пятно / участок, FAR = GFA / участок.
+    """
     site_area = site.area
     buildable = sum(island.area for island in islands)
     footprint = sum(building.contour_area_m2 for building in buildings)
@@ -331,6 +405,16 @@ def rollup_metrics(site: Polygon, islands: list[Polygon], buildings: list[Buildi
 
 
 def compute_massing(points: list[Point], params: MassingParams | None) -> tuple[MassingParams, MassingResult]:
+    """Оркестратор: полигон + параметры → (канонические параметры, результат).
+
+    Конвейер: валидация → дефолт при params=None → клэмп отступа в [0; максимум] →
+    острова → выравнивание списка зданий под острова (несовпадение числа — здания
+    пересоздаются с дефолтом) → команды (высота, подгонка GFA) → эхо канонических
+    параметров с погашенными командами → постройка зданий → свёртка метрик →
+    проверка цели GFA (без фиксаций максимум = участок × 8, т.к. отступ подвижен;
+    с фиксацией — от текущих островов). Каждое движение ползунка и каждое
+    сохранение проходят через эту функцию.
+    """
     site = polygons.validate_site(points)
     if params is None:
         params = default_params(site)
