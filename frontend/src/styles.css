@@ -155,6 +155,184 @@ input {
   padding: 2px 6px;
 }
 
-.site-summary {
-  padding: 20px;
+.options-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 20px;
+}
+
+.chip {
+  border-radius: 16px;
+}
+
+.chip.active {
+  background: #e3ecf8;
+  border-color: #b9cfec;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 38, 48, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.modal.editor {
+  width: 900px;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.editor-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.editor-body {
+  display: flex;
+  gap: 16px;
+}
+
+.level-tree {
+  width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.level {
+  text-align: left;
+  border: 1px solid transparent;
+  background: none;
+}
+
+.level:hover {
+  background: #eef1f5;
+}
+
+.level.active {
+  background: #e3ecf8;
+  border-color: #b9cfec;
+}
+
+.level.floor {
+  margin-left: 16px;
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+.views {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan-canvas,
+.iso-canvas {
+  background: #fbfcfd;
+  border: 1px solid #eceff3;
+  border-radius: 6px;
+}
+
+.controls {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.controls h3 {
+  margin: 0 0 4px;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 70px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.slider-row .slider-range {
+  grid-column: 2;
+  font-size: 11px;
+  color: #8a929c;
+  display: flex;
+  justify-content: space-between;
+}
+
+.slider-row.disabled {
+  opacity: 0.55;
+}
+
+.slider-value {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lock-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.target-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.target-row input {
+  width: 110px;
+}
+
+.gfa-ok {
+  color: #2c6e2c;
+  font-size: 13px;
+  margin: 0;
+}
+
+.gfa-bad {
+  color: #a33;
+  font-size: 13px;
+  margin: 0;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  border-bottom: 1px dashed #eceff3;
+  padding: 3px 0;
+}
+
+.editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.editor-footer input {
+  width: 240px;
 }

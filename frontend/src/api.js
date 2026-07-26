@@ -27,6 +27,14 @@ export async function getHealth() {
   return request("/health");
 }
 
+export async function previewMassing(polygon, params) {
+  return post("/massing/preview", { polygon, params });
+}
+
 export async function createSite(name, polygon) {
   return post("/sites", { name, polygon });
+}
+
+export async function createOption(siteId, parentId, name, params) {
+  return post(`/sites/${siteId}/options`, { parent_id: parentId, name, params });
 }

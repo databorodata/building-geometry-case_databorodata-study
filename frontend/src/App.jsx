@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { createSite, getHealth } from "./api.js";
+import { createOption, createSite, getHealth } from "./api.js";
+import Editor from "./components/Editor.jsx";
 import SiteDrawer from "./components/SiteDrawer.jsx";
 
 export default function App() {
   const [health, setHealth] = useState("проверяем…");
   const [site, setSite] = useState(null);
-  const [rootOption, setRootOption] = useState(null);
+  const [options, setOptions] = useState([]);
+  const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -21,7 +23,8 @@ export default function App() {
     try {
       const created = await createSite(name, polygon);
       setSite(created.site);
-      setRootOption(created.root_option);
+      setOptions([created.root_option]);
+      setEditing(created.root_option);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -29,13 +32,20 @@ export default function App() {
     }
   }
 
-  function handleReset() {
-    setSite(null);
-    setRootOption(null);
-    setError(null);
+  async function handleSaveOption(base, name, params) {
+    const saved = await createOption(site.id, base.id, name, params);
+    setOptions((current) => [...current, saved]);
+    setEditing(saved);
+    return saved;
   }
 
-  const metrics = rootOption?.result?.metrics;
+  function handleReset() {
+    if (!window.confirm("Сбросить работу и вернуться к заданию участка?")) return;
+    setSite(null);
+    setOptions([]);
+    setEditing(null);
+    setError(null);
+  }
 
   return (
     <main className="app">
@@ -59,17 +69,22 @@ export default function App() {
 
       {!site && <SiteDrawer onCreate={handleCreateSite} busy={busy} error={error} />}
 
-      {site && metrics && (
-        <section className="site-summary">
-          <p>Участок сохранён, посчитан корневой вариант застройки.</p>
-          <ul>
-            <li>Площадь участка: {metrics.site_area_m2} м²</li>
-            <li>Застраиваемая площадь: {metrics.buildable_area_m2} м²</li>
-            <li>Зданий: {metrics.building_count}</li>
-            <li>Общая площадь этажей (GFA): {metrics.gfa_m2} м²</li>
-          </ul>
-        </section>
+      {site && (
+        <div className="options-strip">
+          {options.map((option, index) => (
+            <button
+              key={option.id}
+              type="button"
+              className={editing?.id === option.id ? "chip active" : "chip"}
+              onClick={() => setEditing(option)}
+            >
+              {option.name || `Вариант ${index + 1}`}
+            </button>
+          ))}
+        </div>
       )}
+
+      {editing && <Editor site={site} option={editing} onSave={handleSaveOption} onClose={() => setEditing(null)} />}
     </main>
   );
 }
