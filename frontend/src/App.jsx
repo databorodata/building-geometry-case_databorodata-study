@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { compareOptions, createOption, createSite, getHealth } from "./api.js";
+import { compareOptions, createOption, createSite, deleteOption, getHealth } from "./api.js";
 import Board from "./components/Board.jsx";
 import CompareModal from "./components/CompareModal.jsx";
 import Editor from "./components/Editor.jsx";
@@ -37,11 +37,25 @@ export default function App() {
     }
   }
 
-  async function handleSaveOption(base, name, params) {
-    const saved = await createOption(site.id, base.id, name, params);
+  async function handleSaveOption(base, name, params, kind) {
+    const parentId = kind === "save" ? (base.parent_id ?? base.id) : base.id;
+    const saved = await createOption(site.id, parentId, base.id, name, params, kind);
     setOptions((current) => [...current, saved]);
-    setEditing(saved);
+    if (kind === "save") setEditing(saved);
     return saved;
+  }
+
+  async function handleDeleteOption(option, label) {
+    if (!window.confirm(`Удалить карточку «${label}»?`)) return;
+    setError(null);
+    try {
+      await deleteOption(option.id);
+      setOptions((current) => current.filter((item) => item.id !== option.id));
+      setCompareIds((current) => current.filter((id) => id !== option.id));
+      setEditing((current) => (current && current.id === option.id ? null : current));
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   function handleToggleCompare(optionId) {
@@ -102,6 +116,7 @@ export default function App() {
         <Board
           options={options}
           onOpen={(option) => setEditing(option)}
+          onDelete={handleDeleteOption}
           compareIds={compareIds}
           onToggleCompare={handleToggleCompare}
         />

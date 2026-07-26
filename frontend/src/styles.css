@@ -172,15 +172,16 @@ input {
   pointer-events: none;
 }
 
-.board-links line {
+.board-links path {
   stroke: #aeb7c2;
   stroke-width: 2;
+  fill: none;
 }
 
 .card {
   position: absolute;
   width: 210px;
-  height: 230px;
+  height: 240px;
   background: #fff;
   border: 1px solid #dfe3e8;
   border-radius: 10px;
@@ -199,6 +200,27 @@ input {
 .card-title {
   font-weight: 600;
   font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kind-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #e3ecf8;
+  color: #3866a8;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.card-source {
+  font-size: 11px;
+  color: #8a929c;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

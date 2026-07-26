@@ -48,6 +48,18 @@ async def get_option(option_id: UUID, conn: AsyncConnection = Depends(get_connec
     return await load_option(conn, option_id)
 
 
+@router.delete("/{option_id}", status_code=204)
+async def delete_option(option_id: UUID, conn: AsyncConnection = Depends(get_connection)) -> None:
+    record = await repository.get_option(conn, option_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Option not found")
+    if record.parent_id is None:
+        raise HTTPException(status_code=409, detail="Root option cannot be deleted")
+    if await repository.count_children(conn, option_id) > 0:
+        raise HTTPException(status_code=409, detail="Option with branches cannot be deleted")
+    await repository.delete_option(conn, option_id)
+
+
 @router.get("/{option_id}/compare/{other_id}")
 async def compare_options(
     option_id: UUID, other_id: UUID, conn: AsyncConnection = Depends(get_connection)

@@ -96,6 +96,85 @@ async def test_compare_options(client, rectangle_site):
     assert comparison["delta"]["footprint_area_m2"] < 0
 
 
+async def test_fork_kind_saved(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    site_id = body["site"]["id"]
+    root = body["root_option"]
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={"parent_id": root["id"], "kind": "fork", "params": root["params"]},
+    )
+    assert response.status_code == 201
+    assert response.json()["kind"] == "fork"
+    assert root["kind"] == "save"
+
+
+async def test_invalid_kind_rejected(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    response = await client.post(
+        f"/api/v1/sites/{body['site']['id']}/options",
+        json={"parent_id": body["root_option"]["id"], "kind": "wat", "params": body["root_option"]["params"]},
+    )
+    assert response.status_code == 422
+
+
+async def test_source_id_echoed(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    site_id = body["site"]["id"]
+    root = body["root_option"]
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={"parent_id": root["id"], "source_id": root["id"], "params": root["params"]},
+    )
+    assert response.status_code == 201
+    assert response.json()["source_id"] == root["id"]
+    assert root["source_id"] is None
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={
+            "parent_id": root["id"],
+            "source_id": "00000000-0000-0000-0000-000000000000",
+            "params": root["params"],
+        },
+    )
+    assert response.status_code == 404
+
+
+async def test_delete_leaf_option(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    site_id = body["site"]["id"]
+    root = body["root_option"]
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={"parent_id": root["id"], "params": root["params"]},
+    )
+    branch = response.json()
+    response = await client.delete(f"/api/v1/options/{branch['id']}")
+    assert response.status_code == 204
+    response = await client.get(f"/api/v1/sites/{site_id}/options")
+    assert len(response.json()) == 1
+
+
+async def test_delete_root_or_parent_is_rejected(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    site_id = body["site"]["id"]
+    root = body["root_option"]
+    response = await client.delete(f"/api/v1/options/{root['id']}")
+    assert response.status_code == 409
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={"parent_id": root["id"], "params": root["params"]},
+    )
+    branch = response.json()
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={"parent_id": branch["id"], "params": root["params"]},
+    )
+    assert response.status_code == 201
+    response = await client.delete(f"/api/v1/options/{branch['id']}")
+    assert response.status_code == 409
+
+
 async def test_get_sites_and_single_site(client, rectangle_site):
     body = await create_test_site(client, rectangle_site)
     site_id = body["site"]["id"]
@@ -125,6 +204,15 @@ async def test_cross_site_references_rejected(client, rectangle_site, notched_si
         json={"parent_id": site_b["root_option"]["id"], "params": site_a["root_option"]["params"]},
     )
     assert response.status_code == 404
+    response = await client.post(
+        f"/api/v1/sites/{site_a['site']['id']}/options",
+        json={
+            "parent_id": site_a["root_option"]["id"],
+            "source_id": site_b["root_option"]["id"],
+            "params": site_a["root_option"]["params"],
+        },
+    )
+    assert response.status_code == 404
 
 
 async def test_compare_across_sites_rejected(client, rectangle_site, notched_site):
@@ -137,6 +225,17 @@ async def test_compare_across_sites_rejected(client, rectangle_site, notched_sit
 async def test_missing_option_returns_404(client):
     response = await client.get("/api/v1/options/00000000-0000-0000-0000-000000000000")
     assert response.status_code == 404
+
+
+async def test_delete_twice_returns_404(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    response = await client.post(
+        f"/api/v1/sites/{body['site']['id']}/options",
+        json={"parent_id": body["root_option"]["id"], "params": body["root_option"]["params"]},
+    )
+    branch = response.json()
+    assert (await client.delete(f"/api/v1/options/{branch['id']}")).status_code == 204
+    assert (await client.delete(f"/api/v1/options/{branch['id']}")).status_code == 404
 
 
 async def test_compare_option_with_itself(client, rectangle_site):
