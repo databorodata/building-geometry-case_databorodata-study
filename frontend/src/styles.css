@@ -203,6 +203,9 @@ input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .kind-badge {
@@ -430,10 +433,4 @@ input {
 .compare-table th:first-child,
 .compare-table td:first-child {
   text-align: left;
-}
-
-.card-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
