@@ -99,6 +99,76 @@ def test_island_area_reported(rectangle_site):
     assert result.buildings[0].island_area_m2 == pytest.approx(646.0)
 
 
+def test_gfa_fit_up_trades_contour_for_floors(rectangle_site):
+    base_params, base_result = compute_massing(rectangle_site, None)
+    assert base_result.metrics.gfa_m2 == pytest.approx(3230.0, rel=0.01)
+    params = base_params.model_copy(update={"fit_gfa_m2": 4000.0})
+    params, result = compute_massing(rectangle_site, params)
+    assert result.metrics.gfa_m2 == pytest.approx(4000.0, rel=0.01)
+    assert result.buildings[0].floor_count == 7
+    assert result.buildings[0].contour_area_m2 < 646.0
+    assert params.fit_gfa_m2 is None
+
+
+def test_gfa_fit_down_removes_floors(rectangle_site):
+    base_params, _ = compute_massing(rectangle_site, None)
+    params = base_params.model_copy(update={"fit_gfa_m2": 2000.0})
+    _, result = compute_massing(rectangle_site, params)
+    assert result.metrics.gfa_m2 == pytest.approx(2000.0, rel=0.01)
+    assert result.buildings[0].floor_count == 4
+
+
+def test_gfa_fit_clamps_when_unreachable(rectangle_site):
+    base_params, _ = compute_massing(rectangle_site, None)
+    params = base_params.model_copy(update={"fit_gfa_m2": 10000.0})
+    _, result = compute_massing(rectangle_site, params)
+    assert result.metrics.gfa_m2 == pytest.approx(8 * 646.0, rel=0.01)
+    assert result.buildings[0].floor_count == 8
+
+
+def test_gfa_fit_respects_height_lock(rectangle_site):
+    base_params, _ = compute_massing(rectangle_site, None)
+    building = base_params.buildings[0]
+    floors = [floor.model_copy(update={"height_locked": True}) for floor in building.floors]
+    params = base_params.model_copy(
+        update={"buildings": [building.model_copy(update={"floors": floors})], "fit_gfa_m2": 2000.0}
+    )
+    _, result = compute_massing(rectangle_site, params)
+    assert result.buildings[0].floor_count == 5
+    assert result.metrics.gfa_m2 == pytest.approx(2000.0, rel=0.01)
+
+
+def test_gfa_fit_skips_locked_building(notched_site):
+    base_params, base_result = compute_massing(notched_site, MassingParams(setback_m=4.0))
+    locked = base_params.buildings[0].model_copy(update={"locked": True})
+    params = base_params.model_copy(update={"buildings": [locked, base_params.buildings[1]], "fit_gfa_m2": 1200.0})
+    _, result = compute_massing(notched_site, params)
+    assert result.buildings[0].gfa_m2 == pytest.approx(base_result.buildings[0].gfa_m2, rel=0.01)
+    assert result.buildings[1].gfa_m2 > base_result.buildings[1].gfa_m2
+
+
+def test_gfa_fit_respects_contour_lock(rectangle_site):
+    base_params, _ = compute_massing(rectangle_site, None)
+    building = base_params.buildings[0]
+    floors = [floor.model_copy(update={"contour_locked": True}) for floor in building.floors]
+    params = base_params.model_copy(
+        update={"buildings": [building.model_copy(update={"floors": floors})], "fit_gfa_m2": 2000.0}
+    )
+    _, result = compute_massing(rectangle_site, params)
+    assert result.buildings[0].contour_area_m2 == pytest.approx(646.0)
+    assert result.buildings[0].floor_count == 3
+    assert result.metrics.gfa_m2 == pytest.approx(3 * 646.0, rel=0.01)
+
+
+def test_gfa_fit_two_active_buildings(notched_site):
+    base_params, _ = compute_massing(notched_site, MassingParams(setback_m=4.0))
+    params = base_params.model_copy(update={"fit_gfa_m2": 1500.0})
+    _, result = compute_massing(notched_site, params)
+    assert result.metrics.gfa_m2 == pytest.approx(1500.0, rel=0.01)
+    for building in result.buildings:
+        assert building.gfa_m2 == pytest.approx(750.0, rel=0.05)
+
+
 def test_total_height_edit_adds_floors(rectangle_site):
     base_params, _ = compute_massing(rectangle_site, None)
     building = base_params.buildings[0].model_copy(update={"total_height_m": 20.0})
@@ -147,15 +217,26 @@ def test_empty_floors_rebuilt_with_default(rectangle_site):
     assert len(params.buildings[0].floors) == 5
 
 
-def test_gfa_target_check(rectangle_site):
-    params = MassingParams(setback_m=3.0, gfa_target_m2=4000.0)
+def test_gfa_target_check_accounts_for_movable_setback(rectangle_site):
+    params = MassingParams(setback_m=3.0, gfa_target_m2=6000.0)
     params, result = compute_massing(rectangle_site, params)
     assert result.gfa_check is not None
     assert result.gfa_check.reachable is True
-    assert result.gfa_check.max_possible_m2 == pytest.approx(8 * 646.0, rel=0.01)
-    params = params.model_copy(update={"gfa_target_m2": 6000.0})
+    assert result.gfa_check.max_possible_m2 == pytest.approx(8 * 1000.0)
+    assert 0 < result.gfa_check.min_possible_m2 < 30
+    params = params.model_copy(update={"gfa_target_m2": 9000.0})
     _, result = compute_massing(rectangle_site, params)
     assert result.gfa_check is not None
+    assert result.gfa_check.reachable is False
+
+
+def test_gfa_target_check_with_locked_building(rectangle_site):
+    base_params, _ = compute_massing(rectangle_site, None)
+    locked = base_params.buildings[0].model_copy(update={"locked": True})
+    params = base_params.model_copy(update={"buildings": [locked], "gfa_target_m2": 6000.0})
+    _, result = compute_massing(rectangle_site, params)
+    assert result.gfa_check is not None
+    assert result.gfa_check.max_possible_m2 == pytest.approx(8 * 646.0, rel=0.01)
     assert result.gfa_check.reachable is False
 
 
@@ -202,6 +283,64 @@ def test_height_edit_clamps_out_of_range(rectangle_site):
     _, result = compute_massing(rectangle_site, base_params.model_copy(update={"buildings": [building]}))
     assert result.buildings[0].floor_count == 1
     assert result.buildings[0].height_m == pytest.approx(2.3)
+
+
+def test_fit_noop_when_already_on_target(rectangle_site):
+    base_params, base_result = compute_massing(rectangle_site, None)
+    params = base_params.model_copy(update={"fit_gfa_m2": base_result.metrics.gfa_m2})
+    params, result = compute_massing(rectangle_site, params)
+    assert result.buildings[0].floor_count == base_result.buildings[0].floor_count
+    assert result.buildings[0].contour_area_m2 == pytest.approx(base_result.buildings[0].contour_area_m2)
+    assert params.buildings[0].contour_area_m2 is None
+
+
+def test_fit_with_terraces(rectangle_site):
+    floors = [FloorParams(height_m=3.0), FloorParams(height_m=3.0, area_ratio=0.5)]
+    params = MassingParams(setback_m=3.0, buildings=[BuildingParams(floors=floors)])
+    _, base_result = compute_massing(rectangle_site, params)
+    assert base_result.metrics.gfa_m2 == pytest.approx(969.0, rel=0.01)
+    params = params.model_copy(update={"fit_gfa_m2": 1500.0})
+    _, result = compute_massing(rectangle_site, params)
+    assert result.metrics.gfa_m2 == pytest.approx(1500.0, rel=0.02)
+    assert result.buildings[0].floor_count == 3
+
+
+def test_fit_below_minimum_clamps(rectangle_site):
+    base_params, _ = compute_massing(rectangle_site, None)
+    params = base_params.model_copy(update={"fit_gfa_m2": 5.0})
+    _, result = compute_massing(rectangle_site, params)
+    assert result.buildings[0].floor_count == 1
+    assert result.metrics.gfa_m2 < 30.0
+
+
+def test_fit_is_idempotent(rectangle_site):
+    base_params, _ = compute_massing(rectangle_site, None)
+    params = base_params.model_copy(update={"fit_gfa_m2": 2000.0})
+    params, first = compute_massing(rectangle_site, params)
+    params = params.model_copy(update={"fit_gfa_m2": 2000.0})
+    params, second = compute_massing(rectangle_site, params)
+    assert second.buildings[0].floor_count == first.buildings[0].floor_count
+    assert second.buildings[0].contour_area_m2 == pytest.approx(first.buildings[0].contour_area_m2)
+
+
+def test_fit_zero_is_ignored(rectangle_site):
+    base_params, base_result = compute_massing(rectangle_site, None)
+    params = base_params.model_copy(update={"fit_gfa_m2": 0.0})
+    params, result = compute_massing(rectangle_site, params)
+    assert result.metrics.gfa_m2 == pytest.approx(base_result.metrics.gfa_m2)
+    assert params.fit_gfa_m2 is None
+
+
+def test_fit_grows_eroded_contour(rectangle_site):
+    floors = [FloorParams(height_m=3.0) for _ in range(5)]
+    params = MassingParams(setback_m=3.0, buildings=[BuildingParams(contour_area_m2=400.0, floors=floors)])
+    _, base_result = compute_massing(rectangle_site, params)
+    assert base_result.metrics.gfa_m2 == pytest.approx(2000.0, rel=0.01)
+    params = params.model_copy(update={"fit_gfa_m2": 3000.0})
+    _, result = compute_massing(rectangle_site, params)
+    assert result.metrics.gfa_m2 == pytest.approx(3000.0, rel=0.02)
+    assert result.buildings[0].floor_count == 6
+    assert result.buildings[0].contour_area_m2 == pytest.approx(500.0, rel=0.02)
 
 
 def test_floors_truncated_to_eight(rectangle_site):

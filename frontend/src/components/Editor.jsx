@@ -205,13 +205,24 @@ export default function Editor({ site, option, onSave, onClose }) {
                     }
                   />
                 </label>
-                <p className="hint">GFA — суммарная площадь всех этажей всех зданий. Введите цель, чтобы проверить, достижима ли она.</p>
+                <p className="hint">
+                  GFA — суммарная площадь всех этажей всех зданий. Введи цель: покажем, достижима ли она, а кнопка
+                  «Подогнать» изменит этажность и контуры зданий (кроме зафиксированных), чтобы GFA стала максимально
+                  близка к цели.
+                </p>
                 {result.gfa_check && (
                   <p className={result.gfa_check.reachable ? "gfa-ok" : "gfa-bad"}>
-                    {result.gfa_check.reachable ? "🟢 достижима" : "🔴 недостижима"} — максимум{" "}
-                    {fmt(result.gfa_check.max_possible_m2)} м²
+                    {result.gfa_check.reachable ? "🟢 достижима" : "🔴 недостижима"} — возможный диапазон{" "}
+                    {fmt(result.gfa_check.min_possible_m2)}…{fmt(result.gfa_check.max_possible_m2)} м²
                   </p>
                 )}
+                <button
+                  type="button"
+                  disabled={!params.gfa_target_m2}
+                  onClick={() => update((p) => (p.fit_gfa_m2 = p.gfa_target_m2))}
+                >
+                  Подогнать под цель
+                </button>
                 <MetricRow label="Площадь участка" value={`${fmt(result.metrics.site_area_m2)} м²`} />
                 <MetricRow label="Застраиваемая площадь" value={`${fmt(result.metrics.buildable_area_m2)} м²`} />
                 <MetricRow label="Пятно застройки" value={`${fmt(result.metrics.footprint_area_m2)} м²`} />
@@ -288,7 +299,9 @@ export default function Editor({ site, option, onSave, onClose }) {
                   value={buildings[active.building].floors[active.floor].height_m}
                   unit="м"
                   disabled={params.buildings[active.building].floors[active.floor].height_locked}
-                  onChange={(value) => update((p) => (p.buildings[active.building].floors[active.floor].height_m = value))}
+                  onChange={(value) =>
+                    update((p) => (p.buildings[active.building].floors[active.floor].height_m = value))
+                  }
                 />
                 <SliderRow
                   label="Доля пятна"
@@ -307,7 +320,9 @@ export default function Editor({ site, option, onSave, onClose }) {
                     type="checkbox"
                     checked={params.buildings[active.building].floors[active.floor].height_locked}
                     onChange={(event) =>
-                      update((p) => (p.buildings[active.building].floors[active.floor].height_locked = event.target.checked))
+                      update(
+                        (p) => (p.buildings[active.building].floors[active.floor].height_locked = event.target.checked),
+                      )
                     }
                   />
                   Зафиксировать высоту (блокирует высоту здания)
@@ -317,14 +332,26 @@ export default function Editor({ site, option, onSave, onClose }) {
                     type="checkbox"
                     checked={params.buildings[active.building].floors[active.floor].contour_locked}
                     onChange={(event) =>
-                      update((p) => (p.buildings[active.building].floors[active.floor].contour_locked = event.target.checked))
+                      update(
+                        (p) =>
+                          (p.buildings[active.building].floors[active.floor].contour_locked = event.target.checked),
+                      )
                     }
                   />
                   Зафиксировать контур (блокирует контур здания)
                 </label>
-                <MetricRow label="Площадь" value={`${fmt(buildings[active.building].floors[active.floor].area_m2)} м²`} />
-                <MetricRow label="Объём" value={`${fmt(buildings[active.building].floors[active.floor].volume_m3)} м³`} />
-                <MetricRow label="Отметка" value={`${fmt(buildings[active.building].floors[active.floor].level_m)} м`} />
+                <MetricRow
+                  label="Площадь"
+                  value={`${fmt(buildings[active.building].floors[active.floor].area_m2)} м²`}
+                />
+                <MetricRow
+                  label="Объём"
+                  value={`${fmt(buildings[active.building].floors[active.floor].volume_m3)} м³`}
+                />
+                <MetricRow
+                  label="Отметка"
+                  value={`${fmt(buildings[active.building].floors[active.floor].level_m)} м`}
+                />
               </>
             )}
           </div>
