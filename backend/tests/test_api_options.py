@@ -96,6 +96,28 @@ async def test_compare_options(client, rectangle_site):
     assert comparison["delta"]["footprint_area_m2"] < 0
 
 
+async def test_fork_kind_saved(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    site_id = body["site"]["id"]
+    root = body["root_option"]
+    response = await client.post(
+        f"/api/v1/sites/{site_id}/options",
+        json={"parent_id": root["id"], "kind": "fork", "params": root["params"]},
+    )
+    assert response.status_code == 201
+    assert response.json()["kind"] == "fork"
+    assert root["kind"] == "save"
+
+
+async def test_invalid_kind_rejected(client, rectangle_site):
+    body = await create_test_site(client, rectangle_site)
+    response = await client.post(
+        f"/api/v1/sites/{body['site']['id']}/options",
+        json={"parent_id": body["root_option"]["id"], "kind": "wat", "params": body["root_option"]["params"]},
+    )
+    assert response.status_code == 422
+
+
 async def test_get_sites_and_single_site(client, rectangle_site):
     body = await create_test_site(client, rectangle_site)
     site_id = body["site"]["id"]

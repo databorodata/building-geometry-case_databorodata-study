@@ -84,11 +84,11 @@ export default function Editor({ site, option, onSave, onClose }) {
     setParams(next);
   }
 
-  async function handleSave() {
+  async function handleSave(kind) {
     setSaving(true);
     setError(null);
     try {
-      await onSave(option, name.trim() || null, params);
+      await onSave(option, name.trim() || null, params, kind);
       setName("");
     } catch (err) {
       setError(err.message);
@@ -336,8 +336,11 @@ export default function Editor({ site, option, onSave, onClose }) {
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
-          <button type="button" className="primary" disabled={saving} onClick={handleSave}>
+          <button type="button" className="primary" disabled={saving} onClick={() => handleSave("save")}>
             {saving ? "Сохраняем…" : "Сохранить"}
+          </button>
+          <button type="button" disabled={saving} onClick={() => handleSave("fork")}>
+            Скопировать в ветку
           </button>
         </div>
       </div>

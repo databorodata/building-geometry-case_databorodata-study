@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -30,6 +31,7 @@ class OptionResponse(BaseModel):
     id: UUID
     site_id: UUID
     parent_id: UUID | None
+    kind: str
     name: str | None
     params: MassingParams
     result: MassingResult
@@ -43,6 +45,7 @@ class SiteCreateResponse(BaseModel):
 
 class OptionCreateRequest(BaseModel):
     parent_id: UUID
+    kind: Literal["save", "fork"] = "save"
     name: str | None = None
     params: MassingParams
 
@@ -65,6 +68,7 @@ def option_response(record: repository.OptionRecord) -> OptionResponse:
         id=record.id,
         site_id=record.site_id,
         parent_id=record.parent_id,
+        kind=record.kind,
         name=record.name,
         params=MassingParams.model_validate(record.params),
         result=MassingResult.model_validate(record.result),
@@ -78,7 +82,7 @@ async def create_site(
 ) -> SiteCreateResponse:
     params, result = run_massing(request.polygon, None)
     site = await repository.create_site(conn, request.name, [list(point) for point in request.polygon])
-    option = await repository.create_option(conn, site.id, None, None, params.model_dump(), result.model_dump())
+    option = await repository.create_option(conn, site.id, None, "save", None, params.model_dump(), result.model_dump())
     return SiteCreateResponse(site=site_response(site), root_option=option_response(option))
 
 
@@ -116,6 +120,6 @@ async def create_option(
         raise HTTPException(status_code=404, detail="Parent option not found")
     params, result = run_massing(site_polygon(site), request.params)
     record = await repository.create_option(
-        conn, site_id, request.parent_id, request.name, params.model_dump(), result.model_dump()
+        conn, site_id, request.parent_id, request.kind, request.name, params.model_dump(), result.model_dump()
     )
     return option_response(record)

@@ -37,10 +37,10 @@ export default function App() {
     }
   }
 
-  async function handleSaveOption(base, name, params) {
-    const saved = await createOption(site.id, base.id, name, params);
+  async function handleSaveOption(base, name, params, kind) {
+    const saved = await createOption(site.id, base.id, name, params, kind);
     setOptions((current) => [...current, saved]);
-    setEditing(saved);
+    if (kind === "save") setEditing(saved);
     return saved;
   }
 
